@@ -1,0 +1,1 @@
+Static assets and global styles. (logo.svg, variables.css, fonts)

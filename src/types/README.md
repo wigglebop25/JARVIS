@@ -1,0 +1,1 @@
+TypeScript Definitions. Shared interfaces and types across the frontend. (user.d.ts, api-response.ts)

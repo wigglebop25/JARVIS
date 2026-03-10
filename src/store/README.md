@@ -1,0 +1,1 @@
+Global State. Client-side state management (e.g., Zustand or Context). (useUserStore.ts, useAppConfig.ts)

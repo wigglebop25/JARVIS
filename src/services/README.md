@@ -1,0 +1,1 @@
+Tauri/API Bridge. Wrappers for Rust invoke commands or external API calls. (systemService.ts, fileService.ts)

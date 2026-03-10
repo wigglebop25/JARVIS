@@ -1,0 +1,1 @@
+Domain-Specific Logic. The "meat" of the app organized by functionality. (auth/, file-explorer/, settings/)

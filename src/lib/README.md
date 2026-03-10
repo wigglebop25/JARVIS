@@ -1,0 +1,1 @@
+Third-party Config. Initializing libraries and external tool instances. (tauri-client.ts, axios-instance.ts)

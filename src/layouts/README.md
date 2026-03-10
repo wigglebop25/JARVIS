@@ -1,0 +1,1 @@
+Page Skeletons. Persistent UI structures like sidebars or custom titlebars. (MainLayout.tsx, AppSidebar.tsx)

@@ -1,0 +1,1 @@
+Global React Hooks. Logic that can be reused across multiple features. (useLocalStorage.ts, useTheme.ts)

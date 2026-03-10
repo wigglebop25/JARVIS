@@ -1,0 +1,1 @@
+Global UI Building Blocks. Atomic, "dumb" components that don't know about business logic. (Button.tsx, Input.tsx, Modal.tsx)
