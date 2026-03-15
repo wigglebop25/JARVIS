@@ -1,1 +1,40 @@
 @import "tailwindcss";
+
+@theme {
+    /* 1. Backgrounds & Surfaces (Solid dark mode) */
+    --color-base: #121212;
+    --color-surface-1: #1E1E1E;
+    --color-surface-2: #2A2A2A;
+    --color-surface-3: #333333;
+
+    /* 2. Text Colors */
+    --color-primary-txt: #FFFFFF;
+    --color-secondary-txt: #A0A0A0;
+    --color-tertiary-txt: #666666;
+
+    /* 3. Accent & Status (The "Neon" Glow) */
+    --color-jarvis-blue: #00F0FF;
+    --color-neon-purple: #B537FF;
+    --color-success-green: #00FF66;
+    --color-warning-orange: #FFAA00;
+    --color-error-red: #FF3333;
+
+    /* 4. Typography Discipline */
+    --font-sans: "Inter", sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+
+    /* 5. Subtle Shadows (Replacing blurs) */
+    --shadow-surface: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+}
+
+/* Apply the base foundation to the whole app */
+@layer base {
+    body {
+        background-color: var(--color-base);
+        color: var(--color-primary-txt);
+        font-family: var(--font-sans);
+        /* Keeps the fonts crisp on dark backgrounds */
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}

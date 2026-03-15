@@ -1,15 +1,15 @@
 src/
 ├── assets/          # JARVIS branding, icons, and UI sounds
-├── components/      # Global UI (Status badges, Gauge charts, Toggle switches)
-├── features/        # Feature-based logic
+├── components/      # Global, "Dumb" UI (Gauges, Cards, Toggles)
+├── features/        # Feature-based logic (Organized by domain)
 │   ├── automation/  # Routine builders and scheduling logic
-│   ├── devices/     # Device linking and Wake on LAN logic
-│   └── nodes/       # Monitoring online/offline node status
-├── hooks/           # useWebSocket, useDeviceStatus, useAuth
-├── layouts/         # DashboardLayout (Sidebar + System Tray style)
-├── lib/             # API clients (Axios instance for REST, WS client)
-├── pages/           # Dashboard, NodeSettings, AutomationFlow
-├── services/        # The "Bridge" (Calls to Axum API or Tauri/Rust)
-├── store/           # Global state (Active nodes, System volume, Spotify state)
-├── utils/           # formatBytes, parseCommand, wakeWordHelpers
-└── types/           # TS Interfaces for Nodes, Users, and MCP schemas
+│   ├── devices/     # Linking, status, and Wake on LAN (WOL)
+│   └── nodes/       # Node fleet monitoring and health checks
+├── hooks/           # useWebSocket, useHardwareStatus, useAuth
+├── layouts/         # DashboardLayout (Titlebar, Sidebar, Notifications)
+├── lib/             # Third-party configs (Axios for REST, WS Client)
+├── pages/           # Thin Route Views (Dashboard, Automations)
+├── services/        # The "Bridge" (Calls Axum REST or Tauri/Rust)
+├── store/           # Global State (Active Nodes, AI Context)
+├── utils/           # formatBytes, validateCommand, colorHelpers
+└── types/           # TS Interfaces for Nodes, Devices, and MCP schemas

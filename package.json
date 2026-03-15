@@ -15,18 +15,23 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "autoprefixer": "^10.4.27",
+    "framer-motion": "^12.36.0",
+    "lucide-react": "^0.577.0",
     "postcss": "^8.5.8",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-router-dom": "^7.13.1",
+    "recharts": "^3.8.0",
+    "router-dom": "^3.0.3",
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/bun": "latest",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4",
-    "@tauri-apps/cli": "^2",
-    "@types/bun": "latest"
+    "vite": "^7.0.4"
   }
 }
