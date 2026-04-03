@@ -4,7 +4,7 @@ import { Titlebar } from '@/components/Titlebar';
 import { Sidebar } from '@/components/Sidebar'; 
 import { Outlet } from 'react-router-dom'; 
 import { SettingsModal } from '@/components/modals/SettingsModal';
-import { MCPTerminal } from '@/features/mcp/components/MCPterminal'; 
+import { MCPTerminal } from '@/features/mcp/components/MCPTerminal'; 
 
 export const MainLayout = () => {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
