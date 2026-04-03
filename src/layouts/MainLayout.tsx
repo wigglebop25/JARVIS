@@ -10,9 +10,7 @@ export const MainLayout = () => {
 
   return (
     <div className="flex h-screen w-screen bg-base text-primary-txt font-sans overflow-hidden relative">
-      
-      {/* --- THE BULLETPROOF MOVING BACKGROUND --- */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         
         {/* Orb 1: Jarvis Blue */}
         <motion.div 
