@@ -36,7 +36,7 @@ export const Button = ({
 
   return (
     <motion.button
-      whileTap={{ scale: 0.95 }} 
+      whileTap={{ scale: 0.95 }} // The physical "click" feel
       className={`${baseStyles} ${sizes[size]} ${variants[variant]} ${className}`}
       {...props}
     >
