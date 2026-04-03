@@ -49,7 +49,8 @@ export const MOCK_SYSTEM_STATS: SystemData = {
   activeAutomations: 5,
   networkStatus: "Operational",
   avgCpuUsage: 42,
-  avgRamUsage: 68
+  avgRamUsage: 68,
+  systemAlerts: 0
 };
 
 export const MOCK_TASKS = [

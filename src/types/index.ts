@@ -17,6 +17,7 @@ export interface SystemData {
   networkStatus: string;
   avgCpuUsage: number;
   avgRamUsage: number;
+  systemAlerts: number;
 }
 export interface RoutineData {
   id: string;
