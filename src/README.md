@@ -13,3 +13,7 @@ src/
 ├── store/           # Global State (Active Nodes, AI Context)
 ├── utils/           # formatBytes, validateCommand, colorHelpers
 └── types/           # TS Interfaces for Nodes, Devices, and MCP schemas
+
+Tasks:
+Bar graph (optional display style)
+Home Page

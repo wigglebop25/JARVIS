@@ -66,9 +66,9 @@ export const DashboardPage = () => {
               <GlowingChartCard title="RAM USAGE" value={`${history.ram[history.ram.length - 1].value}%`} subValue="System Memory" bottomLeftText="history" bottomRightText="16GB" data={history.ram} dataKey="value" colorHex="#06b6d4" gradientId="ramGradient" />
             </motion.div>
             <motion.div variants={systemBootItem}>
-              <GlowingChartCard title="NET TRAFFIC" value={`${history.net[history.net.length - 1].value} Mbps`} subValue="Live Data Rate" bottomLeftText="10m timeline" bottomRightText="Stable" data={history.net} dataKey="value" colorHex="#d946ef" gradientId="netGradient" />
-            </motion.div>
-          </div>
+              <GlowingChartCard title="NET TRAFFIC" value={`${history.net[history.net.length - 1].value} Mbps`} subValue="Live Data Rate" bottomLeftText="10m timeline" bottomRightText="Stable" data={history.net} dataKey="value" colorHex="#d946ef" gr   adientId="netGradient" />
+            </motion.div>  
+          </div>                                                                                           
 
           <motion.div variants={systemBootItem} className="flex-1 min-h-[400px]">
             <FleetTable devices={devices} />
