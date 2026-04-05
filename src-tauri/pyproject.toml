@@ -1,0 +1,10 @@
+[project]
+name = "src-tauri"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "jarvis-voice",
+]
+
+[tool.uv.sources]
+jarvis-voice = { git = "https://github.com/PROJECT-JARV1S/jarvis-voice.git" }
