@@ -1,48 +1,104 @@
-import { useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+
+// Layouts
 import { MainLayout } from '@/layouts/MainLayout';
+import { OfflineMainLayout } from '@/layouts/OfflineMainLayout';
+
+// Pages
 import { DashboardPage } from '@/pages/DashboardPage';
+import { OfflineDashboardPage } from '@/pages/OfflineDashboardPage';
 import { DeviceManagementPage } from '@/pages/DeviceManagementPage';
 import { AutomationPage } from '@/pages/AutomationPage';
-import { IntroBootSequence } from '@/components/ui/IntroBootSequence'; 
+import { ModeSelectionPage } from '@/pages/ModeSelectionPage';
+
+// Components
+import { IntroBootSequence } from '@/components/ui/IntroBootSequence';
+
 import './styles.css';
 
 function App() {
-  const [isBooted, setIsBooted] = useState(() => {
-    return sessionStorage.getItem('jarvis_booted') === 'true';
+  const [bootState, setBootState] = useState<'intro' | 'selection' | 'online' | 'offline'>(() => {
+    const saved = sessionStorage.getItem('jarvis_mode');
+    if (saved === 'online' || saved === 'offline') return saved as 'online' | 'offline';
+    return 'intro';
   });
 
-  return (
-    <div className="bg-black min-h-screen w-full relative">
-      {/* mode="sync" allows the Dashboard to be visible behind the exiting Video */}
-      <AnimatePresence mode="sync">
-        {!isBooted ? (
-          <IntroBootSequence 
-            key="intro-layer" 
-            onComplete={() => {
-               sessionStorage.setItem('jarvis_booted', 'true');
-               setIsBooted(true);
-            }} 
-          />
-        ) : null}
+  const handleModeSelect = (mode: 'online' | 'offline') => {
+    sessionStorage.setItem('jarvis_mode', mode);
+    setBootState(mode);
+  };
 
-        {/* The Dashboard is always "available" but starts at 0 opacity if not booted */}
-        {isBooted && (
+  useEffect(() => {
+    // Returns user to the Protocol Selection screen (Triggered by Offline Sidebar)
+    const handleSelection = () => {
+      setBootState('selection');
+    };
+
+    // Performs a full system reset back to the Video Intro
+    const handleRestart = () => {
+      sessionStorage.removeItem('jarvis_mode');
+      setBootState('intro');
+    };
+
+    window.addEventListener('go-to-selection', handleSelection);
+    window.addEventListener('restart-jarvis', handleRestart);
+
+    return () => {
+      window.removeEventListener('go-to-selection', handleSelection);
+      window.removeEventListener('restart-jarvis', handleRestart);
+    };
+  }, []);
+
+  return (
+    <div className="bg-black min-h-screen w-full overflow-hidden relative selection:bg-jarvis-blue/30">
+      <AnimatePresence mode="wait">
+        
+        {/* PHASE 1: THE CINEMATIC INTRO */}
+        {bootState === 'intro' && (
+          <IntroBootSequence 
+            key="intro" 
+            onComplete={() => setBootState('selection')} 
+          />
+        )}
+
+        {/* PHASE 2: PROTOCOL SELECTION (Local vs Sync) */}
+        {bootState === 'selection' && (
+          <ModeSelectionPage 
+            key="selection" 
+            onSelect={handleModeSelect} 
+          />
+        )}
+
+        {/* PHASE 3: CORE APPLICATION LOAD */}
+        {(bootState === 'online' || bootState === 'offline') && (
           <motion.div
-            key="dashboard-layer"
+            key="app-content"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 1, ease: "easeOut" }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
             className="h-full w-full"
           >
             <BrowserRouter>
               <Routes>
-                <Route element={<MainLayout />}>
-                  <Route path="/" element={<DashboardPage />} />
-                  <Route path="/device" element={<DeviceManagementPage />} />
-                  <Route path='/automations' element={<AutomationPage/>} />
-                </Route>
+                {/* --- OFFLINE BRANCH --- */}
+                {bootState === 'offline' ? (
+                  <Route element={<OfflineMainLayout />}>
+                    <Route path="/" element={<OfflineDashboardPage />} />
+                    {/* Catch-all for offline: redirect any stray routes to terminal */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Route>
+                ) : (
+                  /* --- ONLINE BRANCH --- */
+                  <Route element={<MainLayout />}>
+                    <Route path="/" element={<DashboardPage />} />
+                    <Route path="/device" element={<DeviceManagementPage />} />
+                    <Route path="/automations" element={<AutomationPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Route>
+                )}
               </Routes>
             </BrowserRouter>
           </motion.div>
