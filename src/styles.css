@@ -19,12 +19,26 @@
     --color-warning-orange: #FFAA00;
     --color-error-red: #FF3333;
 
+    /* --- ADDED FOR OFFLINE / MCP MODE --- */
+    --color-offline-core: #0ea5e9; 
+    --color-offline-bg: #080a0f;
+    --color-offline-surface: #11141b;
+    --color-offline-border: rgba(14, 165, 233, 0.15);
+    
     /* 4. Typography Discipline */
     --font-sans: "Inter", sans-serif;
     --font-mono: "JetBrains Mono", monospace;
 
     /* 5. Subtle Shadows (Replacing blurs) */
     --shadow-surface: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+    
+    /* 6. Animations */
+    --animate-scanline: scanline 8s linear infinite;
+
+    @keyframes scanline {
+        from { transform: translateY(0); }
+        to { transform: translateY(100vh); }
+    }
 }
 
 /* Apply the base foundation to the whole app */
@@ -33,8 +47,49 @@
         background-color: var(--color-base);
         color: var(--color-primary-txt);
         font-family: var(--font-sans);
-        /* Keeps the fonts crisp on dark backgrounds */
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        overflow: hidden; /* Recommended for desktop-style apps */
+    }
+
+    /* Custom Scrollbar for the Chat UI */
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: var(--color-surface-3);
+        border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--color-tertiary-txt);
+    }
+}
+
+/* Utility Classes for the MCP / ChatGPT UI */
+@layer utilities {
+    .bg-offline-gradient {
+        background: linear-gradient(to bottom, transparent, rgba(255, 157, 0, 0.03));
+    }
+
+    .mcp-glass-panel {
+        background: rgba(15, 13, 10, 0.8);
+        backdrop-filter: blur(12px);
+        border: 1px solid var(--color-offline-border);
+    }
+
+    /* The Technical Overlay */
+    .scanline-overlay {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(to bottom, transparent, rgba(255, 157, 0, 0.05), transparent);
+        opacity: 0.5;
+        pointer-events: none;
+        z-index: 50;
+        animation: var(--animate-scanline);
     }
 }
