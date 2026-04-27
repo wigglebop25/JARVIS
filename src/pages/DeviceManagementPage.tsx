@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { systemBootContainer, systemBootItem } from '@/lib/animations';
 import { Button } from '@/components/ui/Button';
 import { Zap, Plus } from 'lucide-react';
-import { DeviceCard } from '@/components/devices/DeviceCard';
+import { DeviceCard } from '@/features/nodes/components/DeviceCard';
 import { LinkDeviceModal } from '@/components/modals/LinkDeviceModal';
 import { useSystemData } from '@/hooks/useSystemData'; 
 

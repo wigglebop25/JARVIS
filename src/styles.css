@@ -21,7 +21,7 @@
 
     /* --- ADDED FOR OFFLINE / MCP MODE --- */
     --color-offline-core: #0ea5e9; 
-    --color-offline-bg: #080a0f;
+    --color-offline-bg: #1111;
     --color-offline-surface: #11141b;
     --color-offline-border: rgba(14, 165, 233, 0.15);
     
@@ -50,6 +50,22 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         overflow: hidden; /* Recommended for desktop-style apps */
+        
+        user-select: none;
+        -webkit-user-select: none;
+        cursor: default;
+    }
+
+    input, textarea, [contenteditable="true"] {
+        user-select: text;
+        -webkit-user-select: text;
+        cursor: text;
+    }
+
+    .selectable-text {
+        user-select: text;
+        -webkit-user-select: text;
+        cursor: auto;
     }
 
     /* Custom Scrollbar for the Chat UI */
