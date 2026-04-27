@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Titlebar } from '@/components/Titlebar';
-import { Sidebar } from '@/components/Sidebar'; 
+import { Titlebar } from '@/components/navigation/Titlebar';
+import { Sidebar } from '@/components/navigation/Sidebar'; 
 import { Outlet } from 'react-router-dom'; 
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { MCPTerminal } from '@/features/mcp/components/MCPTerminal'; 
@@ -12,6 +12,7 @@ export const MainLayout = () => {
   return (
     <div className="flex h-screen w-screen bg-base text-primary-txt font-sans overflow-hidden relative">
       
+      {/* --- BACKGROUND LAYER --- */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <motion.div 
           animate={{ x: [0, 60, 0], y: [0, 40, 0] }}
@@ -35,14 +36,14 @@ export const MainLayout = () => {
         />
       </div>
 
-      {/* --- UI LAYER --- */}
-      <div className="z-20 h-full flex shrink-0">
+      {/* --- SIDEBAR LAYER --- */}
+      <aside className="z-30 relative h-full overflow-visible shrink-0">
         <Sidebar onSettingsClick={() => setIsSettingsOpen(true)} />
-      </div>
+      </aside>
       
-      <div className="flex flex-col flex-1 overflow-hidden z-10 relative">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden z-10 relative">
         <Titlebar />
-        <main className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+        <main className="flex-1 overflow-y-auto p-6 custom-scrollbar min-h-0">
           <div className="max-w-[1600px] mx-auto h-full">
             <Outlet />
           </div>
@@ -53,8 +54,6 @@ export const MainLayout = () => {
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)} 
       />
-
-      {/* --- GLOBAL MCP TERMINAL --- */}
       <MCPTerminal />
 
     </div>

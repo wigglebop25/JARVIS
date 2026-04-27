@@ -1,10 +1,10 @@
 import { motion } from 'framer-motion';
 import { systemBootContainer, systemBootItem } from '@/lib/animations';
 import { useSystemData } from '@/hooks/useSystemData'; 
-import { FleetTable } from '@/components/dashboard/FleetTable';
-import { GlowingChartCard } from '@/components/dashboard/GlowingChartCard';
+import { FleetTable } from '@/features/nodes/components/FleetTable';
+import { GlowingChartCard } from '@/features/nodes/components/GlowingChartCard';
 import { Card } from '@/components/ui/Card';
-import { EventLog } from '@/components/dashboard/EventLog';
+import { EventLog } from '@/features/nodes/components/EventLog';
 import { CheckCircle2, Circle, Loader2, AlertTriangle, AlertCircle } from 'lucide-react';
 
 export const DashboardPage = () => {
