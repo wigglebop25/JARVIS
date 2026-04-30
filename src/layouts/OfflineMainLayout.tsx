@@ -1,19 +1,22 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { OfflineTitlebar } from '@/components/navigation/OfflineTitlebar';
 import { OfflineSidebar } from '@/components/navigation/OfflineSidebar'; 
 import { Outlet } from 'react-router-dom'; 
 import { SettingsModal } from '@/components/modals/SettingsModal';
+import { useVoice } from '@/context/VoiceContext';
+import { NeuralCore } from '@/features/mcp/components/NeuralCore';
 
 export const OfflineMainLayout = () => {
-  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { status } = useVoice();
 
   return (
     <div className="flex h-screen w-screen bg-offline-bg text-primary-txt font-sans overflow-hidden relative">
       
-      {/* --- TECHNICAL HARDWARE LAYER (Replaces Online Blurs) --- */}
+      {/* --- TECHNICAL HARDWARE LAYER --- */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        {/* Subtle Static Grid - Sharper and more dense than online */}
+        {/* Subtle Static Grid */}
         <div 
           className="absolute inset-0 opacity-[0.03]" 
           style={{ 
@@ -29,18 +32,16 @@ export const OfflineMainLayout = () => {
           className="absolute inset-0 opacity-[0.02] bg-gradient-to-b from-transparent via-offline-core to-transparent h-40 w-full"
         />
 
-        {/* Deep Corner Shadows to focus the center */}
+        {/* Deep Corner Shadows */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
       </div>
 
       {/* --- UI LAYER --- */}
-      {/* Sidebar - Using the Offline version with full-bar settings click */}
       <div className="z-20 h-full flex shrink-0">
         <OfflineSidebar onSettingsClick={() => setIsSettingsOpen(true)} />
       </div>
       
       <div className="flex flex-col flex-1 overflow-hidden z-10 relative">
-        {/* Titlebar - Using the hardware telemetry version */}
         <OfflineTitlebar />
         
         <main className="flex-1 overflow-y-auto custom-scrollbar">
@@ -50,14 +51,35 @@ export const OfflineMainLayout = () => {
         </main>
       </div>
 
-      {/* Unified Settings Modal */}
+      {/* --- UNIFIED SETTINGS MODAL --- */}
       <SettingsModal 
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)} 
       />
 
-      {/* Note: Global MCP Terminal is usually hidden in "Local Only" mode 
-          unless you want it as a secondary debug drawer. Removed for maximum air-gap vibe. */}
+      {/* --- 🏛️ GLOBAL OFFLINE VOICE OVERLAY --- */}
+      {/* This sits at z-[110] to cover the Sidebar, Titlebar, and Dashboard when active */}
+      <AnimatePresence>
+        {status === 'LISTENING' && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-xl flex items-center justify-center pointer-events-none"
+          >
+            <div className="flex flex-col items-center">
+              <motion.div 
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1.5, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                className="mb-8"
+              >
+                <NeuralCore />
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
