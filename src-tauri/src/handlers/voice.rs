@@ -1,7 +1,5 @@
 use crate::domain::errors::AppError;
-use crate::domain::voice::{
-    TranscriptPayload, VoiceState, DEFAULT_MODEL_PATH, DEFAULT_MODEL_URI,
-};
+use crate::domain::voice::{TranscriptPayload, VoiceState, DEFAULT_MODEL_PATH, DEFAULT_MODEL_URI};
 use crossbeam_channel::unbounded;
 use jarvis_transcriber::core::config::Config;
 use jarvis_transcriber::transcription::engine::{worker_thread, Command};

@@ -5,16 +5,16 @@ use thiserror::Error;
 pub enum AppError {
     #[error("Python error: {0}")]
     PythonError(String),
-    
+
     #[error("Voice error: {0}")]
     VoiceError(String),
-    
+
     #[error("Lock error: {0}")]
     LockError(String),
-    
+
     #[error("Not available: {0}")]
     NotAvailable(String),
-    
+
     #[error("System error: {0}")]
     SystemError(String),
 }

@@ -3,7 +3,9 @@ pub mod domain;
 pub mod handlers;
 
 use tauri::Manager;
-
+use crate::commands::chat::*;
+use crate::commands::skills::*;
+use crate::commands::voice::*;
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -24,15 +26,15 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             // Chat (jarvis-chat via PyO3)
-            commands::chat::prompt,
-            commands::chat::get_chat_providers,
-            commands::chat::set_chat_provider,
+            prompt,
+            get_chat_providers,
+            set_chat_provider,
             // Voice (jarvis-transcriber, pure Rust)
-            commands::voice::start_voice_listener,
-            commands::voice::stop_voice_listener,
-            commands::voice::get_voice_status,
+            start_voice_listener,
+            stop_voice_listener,
+            get_voice_status,
             // Skills (jarvis-skills MCP — stubs)
-            commands::skills::get_device_info,
+            get_device_info,
             commands::skills::list_skills,
         ])
         .run(tauri::generate_context!())
