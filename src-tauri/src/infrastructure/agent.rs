@@ -177,6 +177,7 @@ async fn build_agent(config: &AppConfig) -> Result<AppAgent, AppError> {
                 .agent(&config.chat_model)
                 .tools(tools)
                 .preamble(&config.system_prompt)
+                .default_max_turns(20)
                 .build()
                 .with_compaction(128_000, compaction_model);
 
@@ -200,6 +201,7 @@ async fn build_agent(config: &AppConfig) -> Result<AppAgent, AppError> {
                 .agent(&config.chat_model)
                 .tools(tools)
                 .preamble(&config.system_prompt)
+                .default_max_turns(20)
                 .build()
                 .with_compaction(128_000, compaction_model);
 
@@ -223,6 +225,7 @@ async fn build_agent(config: &AppConfig) -> Result<AppAgent, AppError> {
                 .agent(&config.chat_model)
                 .tools(tools)
                 .preamble(&config.system_prompt)
+                .default_max_turns(20)
                 .build()
                 .with_compaction(128_000, compaction_model);
 
