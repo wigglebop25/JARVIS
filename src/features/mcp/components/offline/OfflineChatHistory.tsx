@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, User, ChevronDown } from 'lucide-react';
 
@@ -8,34 +8,7 @@ export interface Message {
   text: string;
 }
 
-const renderMessageText = (text: string) => {
-  if (!text) return null;
-  const parts = text.split('**');
-  return parts.map((part, i) => {
-    const isBold = i % 2 === 1;
-    const subParts = part.split('`');
-    const renderedSubParts = subParts.map((subPart, j) => {
-      const isCode = j % 2 === 1;
-      if (isCode) {
-        return (
-          <code key={j} className="bg-white/5 border border-white/10 px-1 py-0.5 rounded font-mono text-[12px] text-offline-core">
-            {subPart}
-          </code>
-        );
-      }
-      return subPart;
-    });
-
-    if (isBold) {
-      return (
-        <strong key={i} className="font-extrabold text-white">
-          {renderedSubParts}
-        </strong>
-      );
-    }
-    return <React.Fragment key={i}>{renderedSubParts}</React.Fragment>;
-  });
-};
+import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 
 export const OfflineChatHistory = ({ messages }: { messages: Message[] }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -102,7 +75,7 @@ export const OfflineChatHistory = ({ messages }: { messages: Message[] }) => {
                       SYS_OK
                     </span>
                   </div>
-                  {renderMessageText(msg.text)}
+                  <MarkdownRenderer content={msg.text} theme="offline" />
                 </div>
               </div>
             </motion.div>

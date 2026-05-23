@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { OfflineTitlebar } from '@/components/navigation/OfflineTitlebar';
 import { OfflineSidebar } from '@/components/navigation/OfflineSidebar'; 
@@ -52,25 +52,23 @@ export const OfflineMainLayout = () => {
         onClose={() => setIsSettingsOpen(false)} 
       />
 
-      {/* --- 🏛️ GLOBAL OFFLINE VOICE OVERLAY --- */}
-      {/* This sits at z-[110] to cover the Sidebar, Titlebar, and Dashboard when active */}
+      {/* --- COMPACT VOICE STATUS STRIP (replaces fullscreen overlay) --- */}
       <AnimatePresence>
         {status === 'LISTENING' && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-xl flex items-center justify-center pointer-events-none"
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="fixed top-14 left-0 right-0 z-[60] flex items-center justify-center pointer-events-none"
           >
-            <div className="flex flex-col items-center">
-              <motion.div 
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1.5, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                className="mb-8"
-              >
+            <div className="flex items-center gap-3 px-5 py-2 bg-offline-surface-dark/90 border border-offline-core/30 rounded-b-xl shadow-[0_4px_20px_rgba(244,244,245,0.08)]">
+              <div className="w-2 h-2 rounded-full bg-offline-core shadow-[0_0_8px_var(--color-offline-core)] animate-pulse" />
+              <span className="text-[9px] font-mono text-offline-core uppercase tracking-[0.25em] font-bold animate-pulse">
+                Voice_Uplink_Active
+              </span>
+              <div className="scale-[0.3] origin-center">
                 <NeuralCore />
-              </motion.div>
+              </div>
             </div>
           </motion.div>
         )}

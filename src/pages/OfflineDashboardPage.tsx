@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { OfflineChatHistory, Message } from '@/features/mcp/components/offline/OfflineChatHistory';
 import { OfflinePromptBar } from '@/features/mcp/components/offline/OfflinePromptBar';
 import { MCPLoading } from '@/features/mcp/components/MCPLoading';
+import { OfflineTelemetryHUD } from '@/features/mcp/components/offline/OfflineTelemetryHUD';
 import { sendPrompt, createSession } from '@/services/chatService';
 
 export const OfflineDashboardPage = () => {
@@ -11,6 +12,7 @@ export const OfflineDashboardPage = () => {
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isHudOpen, setIsHudOpen] = useState(true);
   const sessionInitRef = useRef(false);
 
   // Initialize a backend session on mount
@@ -68,22 +70,31 @@ export const OfflineDashboardPage = () => {
   };
 
   return (
-    <div className="h-full w-full flex flex-col bg-offline-bg relative overflow-hidden">
+    <div className="h-full w-full flex bg-offline-bg relative overflow-hidden">
       
+      {/* ── LEFT: Terminal Chat Workspace ── */}
       <div className="flex-1 flex flex-col overflow-hidden z-10">
         <OfflineChatHistory messages={messages} />
         
         <div className="max-w-5xl mx-auto w-full px-4">
            {isThinking && <MCPLoading />}
         </div>
+
+        <div className="w-full z-20 bg-gradient-to-t from-offline-bg via-offline-bg/90 to-transparent">
+          <OfflinePromptBar 
+            input={input} 
+            setInput={setInput} 
+            onSend={handleSend} 
+            disabled={isThinking}
+          />
+        </div>
       </div>
 
-      <div className="w-full z-20 bg-gradient-to-t from-offline-bg via-offline-bg/90 to-transparent">
-        <OfflinePromptBar 
-          input={input} 
-          setInput={setInput} 
-          onSend={handleSend} 
-          disabled={isThinking}
+      {/* ── RIGHT: Collapsible Telemetry HUD ── */}
+      <div className="relative z-20 h-full flex">
+        <OfflineTelemetryHUD 
+          isOpen={isHudOpen} 
+          onToggle={() => setIsHudOpen(!isHudOpen)} 
         />
       </div>
     </div>
