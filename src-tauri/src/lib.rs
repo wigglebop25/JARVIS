@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod domain;
 pub mod handlers;
+pub mod infrastructure;
 
 use crate::commands::chat::*;
 use crate::commands::config::*;
@@ -32,16 +33,10 @@ pub fn run() {
             // Load Database
             if let Ok(data_dir) = app.path().app_data_dir() {
                 let db_path = data_dir.join(&db_name);
-                match domain::db::DatabaseManager::new(&db_path) {
-                    Ok(db) => {
-                        app.manage(db);
-                    }
-                    Err(e) => {
-                        panic!("Failed to initialize database: {:?}", e);
-                    }
-                }
-            } else {
-                panic!("Failed to resolve app data directory");
+                let db = infrastructure::db::DatabaseManager::new(&db_path).map_err(|e| {
+                    AppError::SystemError(format!("Failed to initialize database {}", e))
+                });
+                app.manage(db);
             }
 
             // Initialize the voice transcription worker in the background

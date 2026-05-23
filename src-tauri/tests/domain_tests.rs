@@ -1,5 +1,5 @@
 use jarvis_lib::domain::config::AppConfig;
-use jarvis_lib::domain::db::DatabaseManager;
+use jarvis_lib::infrastructure::db::DatabaseManager;
 use rig::message::Message;
 use std::fs;
 
@@ -35,17 +35,18 @@ fn test_database_manager() {
     let _ = fs::remove_file(&db_path);
 
     let db = DatabaseManager::new(&db_path).unwrap();
-    let session_id = db.create_session(Some("Test Session".to_string())).unwrap();
+    let repo = jarvis_lib::infrastructure::repository::SessionRepository::new(&db);
+    let session_id = repo.create_session(Some("Test Session".to_string())).unwrap();
 
     // The initial history should be empty
-    let initial_history = db.get_session_history(&session_id).unwrap();
+    let initial_history = repo.get_session_history(&session_id).unwrap();
     assert!(initial_history.is_empty());
 
     // We can't easily construct rig::message::Message here if its fields are private
     // or without importing more from rig, but we can verify it doesn't crash on an empty load.
 
     // Get all sessions
-    let sessions = db.get_all_sessions().unwrap();
+    let sessions = repo.get_all_sessions().unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].title, Some("Test Session".to_string()));
 
