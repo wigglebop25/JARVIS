@@ -21,11 +21,17 @@ pub async fn create_session(
 pub async fn prompt(
     session_id: String,
     input: String,
-    config: State<'_, AppConfig>,
+    config: State<'_, std::sync::Mutex<AppConfig>>,
     db: State<'_, DatabaseManager>,
 ) -> Result<ChatResponse, AppError> {
-    let provider = config.chat_model.clone();
-    let response = send_prompt(&session_id, &input, &config, &db).await?;
+    let config_clone = {
+        let config_guard = config
+            .lock()
+            .map_err(|e| AppError::SystemError(format!("Failed to lock config: {}", e)))?;
+        config_guard.clone()
+    };
+    let provider = config_clone.provider.to_string();
+    let response = send_prompt(&session_id, &input, &config_clone, &db).await?;
 
     Ok(ChatResponse {
         message: response,
@@ -41,8 +47,18 @@ pub async fn get_chat_providers() -> Result<Vec<String>, AppError> {
 
 /// Set the active LLM provider.
 #[tauri::command]
-pub async fn set_chat_provider(provider: String) -> Result<(), AppError> {
-    set_provider(provider)
+pub async fn set_chat_provider(
+    provider: String,
+    config: State<'_, std::sync::Mutex<AppConfig>>,
+    app: tauri::AppHandle,
+) -> Result<(), AppError> {
+    use tauri::Manager;
+    let config_path = app
+        .path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join("config.toml"));
+    set_provider(provider, &config, config_path.as_deref())
 }
 
 /// List all sessions
