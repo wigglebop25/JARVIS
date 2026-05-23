@@ -7,8 +7,7 @@ use crate::commands::chat::*;
 use crate::commands::config::*;
 use crate::commands::skills::*;
 use crate::commands::voice::*;
-use tauri::{App, Manager};
-use crate::domain::errors::AppError;
+use tauri::Manager;
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
