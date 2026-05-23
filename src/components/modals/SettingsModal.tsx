@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, Cpu, Mic, MicOff, Server, 
-  RefreshCcw, Save, RotateCcw, Eye, EyeOff, 
+import {
+  X, Cpu, Mic, MicOff, Server,
+  RefreshCcw, Save, RotateCcw, Eye, EyeOff,
   ChevronDown, Check, Info
 } from 'lucide-react';
-import { 
+import {
   AppConfig, DEFAULT_CONFIG, PROVIDER_MODEL_SUGGESTIONS, PROVIDER_BASE_URLS,
-  getConfig, saveConfig, resetConfig 
+  getConfig, saveConfig, resetConfig
 } from '@/services/configService';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -94,16 +94,16 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
       {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
           {/* Backdrop */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
             className="absolute inset-0 bg-black/80 backdrop-blur-md"
           />
-          
+
           {/* Modal */}
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -122,7 +122,7 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
               </h2>
               <div className="flex items-center gap-3">
                 {hasChanges && (
-                  <motion.span 
+                  <motion.span
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="text-[9px] font-mono text-warning-orange uppercase tracking-widest"
@@ -135,7 +135,7 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
                 </button>
               </div>
             </div>
-            
+
             <div className="flex-1 flex overflow-hidden">
               {/* Left Sidebar */}
               <div className="w-48 border-r border-white/5 p-3 flex flex-col gap-1 shrink-0">
@@ -144,8 +144,8 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-md font-sans font-bold text-xs uppercase tracking-wider cursor-pointer transition-all text-left w-full
-                      ${activeTab === tab.id 
-                        ? `bg-white/10 text-white border-l-2 border-[var(--theme-accent)] shadow-[inset_20px_0_40px_-20px_rgba(var(--theme-accent-rgb),0.1)]` 
+                      ${activeTab === tab.id
+                        ? `bg-white/10 text-white border-l-2 border-[var(--theme-accent)] shadow-[inset_20px_0_40px_-20px_rgba(var(--theme-accent-rgb),0.1)]`
                         : 'text-secondary-txt hover:bg-white/5 border-l-2 border-transparent hover:text-white'
                       }
                     `}
@@ -165,7 +165,7 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
                       </span>
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={handleSwitchMode}
                     className="w-full flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md transition-all group"
                   >
@@ -201,7 +201,7 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
 
                 {/* Footer Actions */}
                 <div className="shrink-0 px-6 py-4 border-t border-white/5 bg-white/[0.02] flex items-center justify-between">
-                  <button 
+                  <button
                     onClick={handleReset}
                     className="flex items-center gap-2 px-4 py-2 text-secondary-txt hover:text-error-red border border-transparent hover:border-error-red/30 rounded-lg transition-all text-xs font-mono uppercase tracking-wider"
                   >
@@ -211,9 +211,9 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
 
                   <div className="flex items-center gap-3">
                     {saveStatus === 'saved' && (
-                      <motion.span 
-                        initial={{ opacity: 0, x: 10 }} 
-                        animate={{ opacity: 1, x: 0 }} 
+                      <motion.span
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
                         className="flex items-center gap-1.5 text-success-green text-[10px] font-mono uppercase tracking-widest"
                       >
                         <Check size={12} />
@@ -223,11 +223,11 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
                     {saveStatus === 'error' && (
                       <span className="text-error-red text-[10px] font-mono uppercase tracking-widest">Save_Failed</span>
                     )}
-                    <button 
+                    <button
                       onClick={handleSave}
                       disabled={!hasChanges || isSaving}
                       className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-sans font-bold text-xs uppercase tracking-wider transition-all duration-300
-                        ${hasChanges 
+                        ${hasChanges
                           ? 'bg-[var(--theme-accent)]/10 text-[var(--theme-accent)] border border-[var(--theme-accent)]/30 hover:bg-[var(--theme-accent)]/20 hover:scale-105 shadow-[0_0_15px_rgba(var(--theme-accent-rgb),0.15)] active:scale-95'
                           : 'bg-white/5 text-tertiary-txt border border-white/5 cursor-not-allowed'
                         }
@@ -397,16 +397,16 @@ const VoiceTab = ({ config, updateConfig }: TabProps) => {
         if (!AudioContextClass) {
           throw new Error("Web Audio API is not supported in this environment.");
         }
-        
+
         audioContext = new AudioContextClass();
         analyser = audioContext.createAnalyser();
         const source = audioContext.createMediaStreamSource(stream);
         source.connect(analyser);
         analyser.fftSize = 256;
-        
+
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
-        
+
         const updateLevel = () => {
           if (!analyser) return;
           analyser.getByteFrequencyData(dataArray);
@@ -483,20 +483,19 @@ const VoiceTab = ({ config, updateConfig }: TabProps) => {
             <h4 className="text-xs font-sans font-bold text-primary-txt uppercase tracking-wider">Voice Test Console</h4>
             <p className="text-[11px] font-sans text-tertiary-txt">Real hardware feed to safely test gate sensitivity thresholds.</p>
           </div>
-          <button 
+          <button
             type="button"
             onClick={toggleMicTest}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-sans font-bold text-xs uppercase tracking-wider transition-all duration-300 ${
-              isTesting 
-                ? 'bg-error-red/10 text-error-red border border-error-red/30 shadow-[0_0_15px_rgba(255,0,0,0.15)] animate-pulse' 
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-sans font-bold text-xs uppercase tracking-wider transition-all duration-300 ${isTesting
+                ? 'bg-error-red/10 text-error-red border border-error-red/30 shadow-[0_0_15px_rgba(255,0,0,0.15)] animate-pulse'
                 : 'bg-[var(--theme-accent)]/10 text-[var(--theme-accent)] border border-[var(--theme-accent)]/30 hover:bg-[var(--theme-accent)]/20 shadow-[0_0_15px_rgba(var(--theme-accent-rgb),0.15)]'
-            }`}
+              }`}
           >
             {isTesting ? <MicOff size={14} /> : <Mic size={14} />}
             {isTesting ? 'Stop Test' : 'Start Test'}
           </button>
         </div>
-        
+
         {micError && (
           <div className="text-xs font-sans text-error-red bg-error-red/10 px-3 py-2 rounded-md border border-error-red/20">
             [ERROR]: {micError}
@@ -514,21 +513,20 @@ const VoiceTab = ({ config, updateConfig }: TabProps) => {
 
           <div className="relative h-4 bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-inner">
             {/* Live Feed Bar */}
-            <div 
-              className={`h-full transition-all duration-75 ${
-                isSpeechDetected 
-                  ? 'bg-gradient-to-r from-success-green to-success-green/80 shadow-[0_0_10px_#00FF66]' 
+            <div
+              className={`h-full transition-all duration-75 ${isSpeechDetected
+                  ? 'bg-gradient-to-r from-success-green to-success-green/80 shadow-[0_0_10px_#00FF66]'
                   : 'bg-[var(--theme-accent)]'
-              }`}
+                }`}
               style={{ width: `${isTesting ? micLevel : 0}%` }}
             />
             {/* Gate indicator line */}
-            <div 
+            <div
               className="absolute top-0 bottom-0 w-0.5 bg-error-red/80 shadow-[0_0_5px_#FF3333] z-10 transition-all duration-100"
               style={{ left: `${thresholdPercentage}%` }}
             />
           </div>
-          
+
           <div className="flex justify-between text-[10px] font-mono text-tertiary-txt/60">
             <span>0%</span>
             <span style={{ marginLeft: `${thresholdPercentage - 5}%` }} className="text-error-red font-semibold">GATE ({thresholdPercentage.toFixed(0)}%)</span>
@@ -693,7 +691,7 @@ interface SliderInputProps {
 
 const SliderInput = ({ id, value, onChange, min, max, step, labelLeft, labelRight, decimals = 2, suffix = '' }: SliderInputProps) => {
   const percentage = ((value - min) / (max - min)) * 100;
-  
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -705,7 +703,7 @@ const SliderInput = ({ id, value, onChange, min, max, step, labelLeft, labelRigh
       </div>
       <div className="relative group cursor-pointer">
         <div className="h-2 bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-inner">
-          <div 
+          <div
             className="h-full bg-[var(--theme-accent)] transition-all duration-100 shadow-[0_0_10px_rgba(var(--theme-accent-rgb),0.5)]"
             style={{ width: `${percentage}%` }}
           />
@@ -721,7 +719,7 @@ const SliderInput = ({ id, value, onChange, min, max, step, labelLeft, labelRigh
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
         {/* Thumb indicator */}
-        <div 
+        <div
           className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white border-2 border-[var(--theme-accent)] shadow-[0_0_15px_rgba(var(--theme-accent-rgb),0.8)] transition-all duration-100 pointer-events-none group-hover:scale-125"
           style={{ left: `calc(${percentage}% - 8px)` }}
         />

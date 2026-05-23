@@ -66,7 +66,7 @@ export const getConfig = async (): Promise<AppConfig> => {
  */
 export const saveConfig = async (config: AppConfig): Promise<void> => {
   try {
-    await invoke('update_config', { new_config: config });
+    await invoke('update_config', { newConfig: config });
     console.log('[ConfigService] Config saved via backend.');
   } catch (err) {
     console.error('[ConfigService] Backend update_config failed:', err);
@@ -80,7 +80,7 @@ export const saveConfig = async (config: AppConfig): Promise<void> => {
 export const resetConfig = async (): Promise<AppConfig> => {
   const defaults = { ...DEFAULT_CONFIG };
   try {
-    await invoke('update_config', { new_config: defaults });
+    await invoke('update_config', { newConfig: defaults });
     console.log('[ConfigService] Config reset to defaults via backend.');
   } catch (err) {
     console.warn('[ConfigService] Backend reset failed, returning local defaults:', err);

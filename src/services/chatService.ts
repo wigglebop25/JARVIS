@@ -9,7 +9,7 @@ import { ChatResponse, Session, RigMessage } from "@/types/tauri";
  * and saves the updated history back.
  */
 export const sendPrompt = async (sessionId: string, input: string): Promise<ChatResponse> => {
-  return await invoke<ChatResponse>("prompt", { session_id: sessionId, input });
+  return await invoke<ChatResponse>("prompt", { sessionId, input });
 };
 
 // ─── Session Management ─────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ export const listSessions = async (): Promise<Session[]> => {
  * Retrieves the full message history for a given session.
  */
 export const getHistory = async (sessionId: string): Promise<RigMessage[]> => {
-  return await invoke<RigMessage[]>("get_history", { session_id: sessionId });
+  return await invoke<RigMessage[]>("get_history", { sessionId });
 };
 
 // ─── Provider Management ────────────────────────────────────────────────────
