@@ -20,10 +20,11 @@
     --color-error-red: #FF3333;
 
     /* --- ADDED FOR OFFLINE / MCP MODE --- */
-    --color-offline-core: #0ea5e9; 
-    --color-offline-bg: #1111;
-    --color-offline-surface: #11141b;
-    --color-offline-border: rgba(14, 165, 233, 0.15);
+    --color-offline-core: #f4f4f5; 
+    --color-offline-bg: #202227;
+    --color-offline-surface: #2b2d32;
+    --color-offline-surface-dark: #16171a;
+    --color-offline-border: rgba(244, 244, 245, 0.12);
     
     /* 4. Typography Discipline */
     --font-sans: "Inter", sans-serif;
@@ -85,9 +86,20 @@
 }
 
 /* Utility Classes for the MCP / ChatGPT UI */
+:root {
+    --color-offline-core-rgb: 244, 244, 245;
+    --theme-accent: var(--color-jarvis-blue);
+    --theme-accent-rgb: 0, 240, 255;
+}
+
+::selection {
+    background: rgba(var(--theme-accent-rgb), 0.3);
+    color: white;
+}
+
 @layer utilities {
     .bg-offline-gradient {
-        background: linear-gradient(to bottom, transparent, rgba(255, 157, 0, 0.03));
+        background: linear-gradient(to bottom, transparent, rgba(244, 244, 245, 0.03));
     }
 
     .mcp-glass-panel {
@@ -102,10 +114,21 @@
         inset: 0;
         width: 100%;
         height: 4px;
-        background: linear-gradient(to bottom, transparent, rgba(255, 157, 0, 0.05), transparent);
+        background: linear-gradient(to bottom, transparent, rgba(244, 244, 245, 0.04), transparent);
         opacity: 0.5;
         pointer-events: none;
         z-index: 50;
         animation: var(--animate-scanline);
+    }
+
+    .grid-overlay {
+        position: fixed;
+        inset: 0;
+        background-image: 
+          linear-gradient(rgba(244, 244, 245, 0.008) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(244, 244, 245, 0.008) 1px, transparent 1px);
+        background-size: 24px 24px;
+        pointer-events: none;
+        z-index: 1;
     }
 }

@@ -4,7 +4,7 @@ import { ChevronLeft, Send, X, Mic, Terminal } from 'lucide-react';
 import { MCPMessageLog, Message } from './MCPMessageLog'; 
 import { useVoice } from '@/context/VoiceContext'; 
 import { NeuralCore } from '@/features/mcp/components/NeuralCore';
-import { sendPrompt } from '@/services/chatService';
+import { sendPrompt, createSession } from '@/services/chatService';
 
 export const MCPTerminal = () => {
   const { status, transcript, startListening, stopListening, setStatus } = useVoice(); 
@@ -13,6 +13,20 @@ export const MCPTerminal = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [showHistory, setShowHistory] = useState(true);
   const [isThinking, setIsThinking] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  // Initialize a chat session on mount
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const id = await createSession("MCP Terminal");
+        setSessionId(id);
+      } catch (err) {
+        console.error("Failed to create MCP terminal session:", err);
+      }
+    };
+    initSession();
+  }, []);
   
   // Use a ref to track if we've already sent the current transcript
   const lastProcessedTranscript = useRef('');
@@ -51,7 +65,13 @@ export const MCPTerminal = () => {
     if (status === 'LISTENING') stopListening();
 
     try {
-      const response = await sendPrompt(textToSend);
+      // Ensure we have a session, create one on-the-fly if needed
+      let sid = sessionId;
+      if (!sid) {
+        sid = await createSession("MCP Terminal");
+        setSessionId(sid);
+      }
+      const response = await sendPrompt(sid, textToSend);
       
       setMessages(prev => [...prev, { 
         id: Date.now().toString(), 
@@ -147,7 +167,7 @@ export const MCPTerminal = () => {
                     </button>
 
                     <button 
-                      onClick={handleSend}
+                      onClick={() => handleSend()}
                       className="w-10 h-10 flex items-center justify-center rounded-full bg-jarvis-blue/10 border border-jarvis-blue/30 text-jarvis-blue hover:bg-jarvis-blue hover:text-black transition-all"
                     >
                       <Send size={16} />
@@ -158,11 +178,11 @@ export const MCPTerminal = () => {
             </motion.div>
           ) : (
             /* TRIGGER */
-            <div className="w-full flex justify-end pointer-events-auto">
+            <div className="w-full flex justify-end pointer-events-none">
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 onClick={() => setIsOpen(true)}
-                className="w-14 h-14 rounded-full flex items-center justify-center bg-surface-1/90 backdrop-blur-xl border border-jarvis-blue/50 text-jarvis-blue shadow-lg relative"
+                className="w-14 h-14 rounded-full flex items-center justify-center bg-surface-1/90 backdrop-blur-xl border border-jarvis-blue/50 text-jarvis-blue shadow-lg relative pointer-events-auto"
               >
                 {status === 'IDLE' ? <Terminal size={22} /> : <div className="scale-50"><NeuralCore /></div>}
                 <div className="absolute inset-0 rounded-full border border-jarvis-blue animate-ping opacity-30" />

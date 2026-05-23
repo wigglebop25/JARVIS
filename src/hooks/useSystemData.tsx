@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { 
   MOCK_SYSTEM_STATS, MOCK_DEVICES, MOCK_TASKS, 
   MOCK_EVENTS, MOCK_CPU_HISTORY, MOCK_RAM_HISTORY, MOCK_NET_HISTORY 
@@ -51,9 +52,28 @@ export const useSystemData = () => {
     }, 3000);
   };
 
+  const addDevice = useCallback((device: any) => {
+    setDevices(prev => [...prev, device]);
+    addEvent(`DEVICE_ADDED: ${device.name}`);
+  }, [addEvent]);
+
   // --- 2. BOOT SEQUENCE ---
   useEffect(() => {
     const boot = async () => {
+      // Try to fetch real device info from the backend
+      try {
+        const deviceInfo = await invoke<string>('get_device_info');
+        // If the backend returns real data in the future, parse and use it here.
+        // For now the stub returns an error, which we catch below.
+        addEvent(`BACKEND_SYNC: Device info received`);
+        console.log('[SystemData] Backend device info:', deviceInfo);
+      } catch (err) {
+        // Expected: the backend stub returns NotAvailable.
+        // Gracefully fall back to mock/simulated data.
+        console.info('[SystemData] Backend get_device_info not available, using simulated data:', err);
+      }
+
+      // Finish boot regardless of backend availability
       await new Promise(r => setTimeout(r, 1200));
       setIsLoading(false);
     };
@@ -100,5 +120,5 @@ export const useSystemData = () => {
     return () => clearInterval(interval);
   }, [isLoading, error]);
 
-  return { stats, devices, tasks, events, history, isLoading, error, toggleTask, rebootDevice };
+  return { stats, devices, tasks, events, history, isLoading, error, toggleTask, rebootDevice, addDevice };
 };

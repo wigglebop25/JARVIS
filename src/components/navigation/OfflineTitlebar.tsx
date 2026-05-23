@@ -6,7 +6,7 @@ export const OfflineTitlebar = () => {
   return (
     <header 
       data-tauri-drag-region 
-      className="h-14 w-full bg-offline-bg border-b border-offline-border flex items-center justify-between px-6 select-none z-50 relative overflow-hidden"
+      className="h-14 w-full bg-offline-surface-dark border-b border-offline-border flex items-center justify-between px-6 select-none z-50 relative overflow-hidden"
     >
       {/* Visual Subsurface Glow */}
       <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-offline-core/5 via-transparent to-offline-core/5" />

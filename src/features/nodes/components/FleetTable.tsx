@@ -9,15 +9,15 @@ export const FleetTable = ({ devices }: FleetTableProps) => {
   return (
     <Card title="Fleet Status Overview" className="h-full">
       <div className="overflow-x-auto">
-        <table className="w-full text-left font-mono text-sm">
+        <table className="w-full text-left">
           <thead>
             {/* BRIGHTENED: Changed text-surface-3 to primary-txt/50 */}
-            <tr className="text-primary-txt/50 border-b border-white/10">
-              <th className="pb-3 font-bold uppercase text-[13px] tracking-wider">Device Name</th>
-              <th className="pb-3 font-bold uppercase text-[13px] tracking-wider text-center">CPU Load</th>
-              <th className="pb-3 font-bold uppercase text-[13px] tracking-wider text-center">Memory</th>
-              <th className="pb-3 font-bold uppercase text-[13px] tracking-wider text-center">Storage</th>
-              <th className="pb-3 font-bold uppercase text-[13px] tracking-wider text-right">Net Traffic</th>
+            <tr className="border-b border-white/10 font-sans text-xs font-bold text-secondary-txt uppercase tracking-wider">
+              <th className="pb-3 text-left">Device Name</th>
+              <th className="pb-3 text-center">CPU Load</th>
+              <th className="pb-3 text-center">Memory</th>
+              <th className="pb-3 text-center">Storage</th>
+              <th className="pb-3 text-right">Net Traffic</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
@@ -25,12 +25,12 @@ export const FleetTable = ({ devices }: FleetTableProps) => {
               <tr key={device.id} className="group hover:bg-white/5 transition-colors">
                 <td className="py-4 flex items-center gap-3">
                   <div className={`w-2 h-2 ml-2 rounded-full ${device.status === 'online' ? 'bg-success-green shadow-[0_0_8px_#00FF66]' : 'bg-secondary-txt'}`} />
-                  <span className="text-primary-txt font-bold tracking-tight">{device.name}</span>
+                  <span className="font-sans text-[15px] font-semibold text-primary-txt tracking-tight">{device.name}</span>
                 </td>
 
                 <td className="py-4 px-4 align-middle">
                   <div className="flex flex-col gap-1 w-24 mx-auto">
-                    <div className="flex justify-between text-[10px] font-mono">
+                    <div className="flex justify-between text-xs font-mono">
                       <span className="text-primary-txt/60 font-bold uppercase">CPU</span>
                       <span className={device.cpu > 80 ? "text-error-red" : "text-primary-txt"}>{device.cpu}%</span>
                     </div>
@@ -45,7 +45,7 @@ export const FleetTable = ({ devices }: FleetTableProps) => {
 
                 <td className="py-4 px-4 align-middle">
                   <div className="flex flex-col gap-1 w-24 mx-auto">
-                    <div className="flex justify-between text-[10px] font-mono">
+                    <div className="flex justify-between text-xs font-mono">
                       <span className="text-primary-txt/60 font-bold uppercase">RAM</span>
                       <span className={device.ram > 80 ? "text-error-red" : "text-primary-txt"}>{device.ram}%</span>
                     </div>
@@ -58,8 +58,8 @@ export const FleetTable = ({ devices }: FleetTableProps) => {
                   </div>
                 </td>
 
-                <td className="py-4 text-center text-primary-txt/80">{device.storage}%</td>
-                <td className="py-4 text-right text-jarvis-blue font-bold pr-3">{device.network}</td>
+                <td className="py-4 text-center text-[15px] font-mono text-primary-txt">{device.storage}%</td>
+                <td className="py-4 text-right text-[15px] font-mono text-jarvis-blue font-bold pr-3">{device.network}</td>
               </tr>
             ))}
           </tbody>

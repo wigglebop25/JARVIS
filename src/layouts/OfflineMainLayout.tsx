@@ -16,24 +16,19 @@ export const OfflineMainLayout = () => {
       
       {/* --- TECHNICAL HARDWARE LAYER --- */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        {/* Subtle Static Grid */}
-        <div 
-          className="absolute inset-0 opacity-[0.03]" 
-          style={{ 
-            backgroundImage: `radial-gradient(var(--color-offline-core) 1px, transparent 1px)`,
-            backgroundSize: '24px 24px' 
-          }} 
-        />
+        {/* Technical Grid Overlay */}
+        <div className="grid-overlay" />
 
         {/* Moving Technical Scanline */}
         <motion.div 
-          animate={{ y: [0, 500, 0] }}
-          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-          className="absolute inset-0 opacity-[0.02] bg-gradient-to-b from-transparent via-offline-core to-transparent h-40 w-full"
+          animate={{ y: [0, 600, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          style={{ willChange: 'transform' }}
+          className="absolute inset-0 opacity-[0.015] bg-gradient-to-b from-transparent via-offline-core to-transparent h-32 w-full will-change-transform"
         />
 
-        {/* Deep Corner Shadows */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
+        {/* Subtle Dark Vignette */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.35)_100%)]" />
       </div>
 
       {/* --- UI LAYER --- */}

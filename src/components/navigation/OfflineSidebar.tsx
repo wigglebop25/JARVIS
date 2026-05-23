@@ -15,7 +15,7 @@ export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
       initial={false}
       animate={{ width: isOpen ? "16rem" : "4rem" }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="h-full bg-offline-bg/80 backdrop-blur-xl border-r border-offline-border/95 flex flex-col z-40 relative shrink-0"
+      className="h-full bg-offline-surface-dark border-r border-offline-border/80 flex flex-col z-40 relative shrink-0"
     >
       {/* HEADER: Unified Logo & Text Logic */}
       <div 
@@ -78,13 +78,13 @@ export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
       </nav>
 
       {/* BOTTOM SECTION: Full-width Settings Button */}
-      <div className="mt-auto flex flex-col pb-2 px-2 gap-2 border-t border-white/5 pt-2">
+      <div className="mt-auto flex flex-col pb-3 px-2 gap-2 border-t border-white/5 pt-3">
         <button
           onClick={(e) => {
             e.preventDefault();
             onSettingsClick(); // This triggers the modal in the parent
           }}
-          className="w-full flex items-center h-12 rounded-md transition-all duration-200 overflow-hidden group text-secondary-txt border border-transparent hover:bg-white/5 hover:text-primary-txt"
+          className="w-full flex items-center h-12 rounded-lg transition-all duration-300 overflow-hidden group text-primary-txt/80 bg-white/[0.01] border border-offline-border/30 hover:border-offline-core/50 hover:bg-offline-core/5 hover:text-white hover:shadow-[0_0_15px_rgba(200,200,200,0.1)]"
           title={!isOpen ? "System Settings" : ""}
         >
           {/* Icon Section */}

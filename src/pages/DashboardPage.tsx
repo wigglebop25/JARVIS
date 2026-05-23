@@ -40,15 +40,15 @@ export const DashboardPage = () => {
       {/* STATUS TRAY */}
       <motion.div variants={systemBootItem} className="flex items-center justify-between py-2 px-4 bg-surface-1/40 backdrop-blur-md border border-white/5 rounded-lg shadow-sm">
         <div className="flex gap-8 items-center">
-          <div className="flex items-center gap-2 text-[11px] font-mono text-primary-txt/60 uppercase">
+          <div className="flex items-center gap-2 text-[11px] font-sans font-medium tracking-wider text-primary-txt/60 uppercase">
             <div className="w-1.5 h-1.5 rounded-full bg-success-green shadow-[0_0_5px_#00FF66] animate-pulse" />
             Network: <span className="text-primary-txt font-bold">{stats.networkStatus}</span>
           </div>
-          <div className="text-[11px] font-mono text-primary-txt/60 uppercase">
+          <div className="text-[11px] font-sans font-medium tracking-wider text-primary-txt/60 uppercase">
             Nodes: <span className="text-primary-txt font-bold">{onlineCount} / {devices.length} Online</span>
           </div>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1 bg-surface-2/50 border border-white/5 rounded text-[10px] font-mono text-primary-txt/40">
+        <div className="flex items-center gap-2 px-3 py-1 bg-surface-2/50 border border-white/5 rounded text-[10px] font-sans font-semibold tracking-widest uppercase text-primary-txt/40">
           <AlertCircle size={12} /> 0 SYSTEM ALERTS
         </div>
       </motion.div>
@@ -83,7 +83,7 @@ export const DashboardPage = () => {
                 {tasks.map(task => (
                   <div key={task.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded transition-colors">
                     {task.status === 'completed' ? <CheckCircle2 size={14} className="text-success-green" /> : <Circle size={14} className="text-jarvis-blue animate-pulse" />}
-                    <p className={`text-xs font-mono font-bold ${task.status === 'completed' ? 'text-primary-txt/30 line-through' : 'text-primary-txt'}`}>
+                    <p className={`text-[13px] font-sans font-medium ${task.status === 'completed' ? 'text-primary-txt/30 line-through' : 'text-primary-txt'}`}>
                       {task.title}
                     </p>
                   </div>

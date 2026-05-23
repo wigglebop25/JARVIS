@@ -42,28 +42,37 @@ export const OfflineChatHistory = ({ messages }: { messages: Message[] }) => {
               key={msg.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`flex gap-6 ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+              className={`flex gap-4 ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
             >
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
+              {/* Profile Icon */}
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border transition-all duration-300 ${
                 msg.sender === 'user' 
-                  ? 'border-white/10 bg-white/5 text-secondary-txt' 
-                  : 'border-offline-core/30 bg-offline-core/10 text-offline-core shadow-[0_0_15px_var(--color-offline-border)]'
+                  ? 'border-white/10 bg-white/5 text-secondary-txt/80' 
+                  : 'border-offline-border bg-offline-surface-dark text-offline-core shadow-[0_0_10px_rgba(var(--color-offline-core-rgb),0.1)]'
               }`}>
-                {msg.sender === 'user' ? <User size={20} /> : <Cpu size={20} />}
+                {msg.sender === 'user' ? <User size={16} /> : <Cpu size={16} />}
               </div>
 
-              <div className={`flex flex-col gap-2 max-w-3xl ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                <span className="text-[10px] font-mono uppercase tracking-[0.2em] opacity-30 select-none">
-                  {msg.sender === 'user' ? 'Authorized_User' : 'Jarvis_Core'}
-                </span>
-                
+              {/* Chat Card Box */}
+              <div className="flex flex-col gap-1 max-w-3xl">
                 <div className={`
-                  text-sm leading-relaxed font-mono whitespace-pre-wrap selectable-text p-1
+                  border rounded-xl p-4 font-sans text-[14px] leading-relaxed whitespace-pre-wrap selectable-text shadow-lg hover:shadow-xl transition-all duration-300
                   ${msg.sender === 'user' 
-                    ? 'text-right text-secondary-txt/80' 
-                    : 'text-left text-primary-txt/90 selection:bg-offline-core/30'
+                    ? 'border-offline-border/50 bg-offline-surface/40 text-secondary-txt/90' 
+                    : 'border-offline-border bg-offline-surface text-primary-txt border-l-2 border-l-offline-core'
                   }
                 `}>
+                  {/* Technical Header inside bubble */}
+                  <div className="flex items-center justify-between gap-10 mb-2 border-b border-white/5 pb-1 select-none">
+                    <span className={`font-mono text-[9px] uppercase tracking-[0.15em] font-bold ${
+                      msg.sender === 'user' ? 'text-secondary-txt/45' : 'text-offline-core/70'
+                    }`}>
+                      {msg.sender === 'user' ? '[AUTHORIZED_USER // SECURE_NODE]' : '[JARVIS_CORE // AIR_GAPPED_STANDBY]'}
+                    </span>
+                    <span className="font-mono text-[9px] text-white/20 font-bold">
+                      SYS_OK
+                    </span>
+                  </div>
                   {msg.text}
                 </div>
               </div>

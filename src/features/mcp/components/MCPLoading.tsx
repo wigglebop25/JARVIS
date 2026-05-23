@@ -30,8 +30,8 @@ export const MCPLoading = () => {
             <motion.div
               key={i}
               animate={{ 
-                backgroundColor: ["#0ea5e920", "#0ea5e9", "#0ea5e920"],
-                boxShadow: ["0 0 0px #0ea5e900", "0 0 8px #0ea5e9", "0 0 0px #0ea5e900"]
+                backgroundColor: ["rgba(244, 244, 245, 0.2)", "rgba(244, 244, 245, 1)", "rgba(244, 244, 245, 0.2)"],
+                boxShadow: ["0 0 0px rgba(244, 244, 245, 0)", "0 0 8px rgba(244, 244, 245, 0.6)", "0 0 0px rgba(244, 244, 245, 0)"]
               }}
               transition={{ 
                 repeat: Infinity, 

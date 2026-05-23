@@ -46,10 +46,15 @@ export const VoiceProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const startListening = useCallback(async () => {
-    setStatus('LISTENING');
+    setStatus('WAKING');
     setTranscript('');
     try {
-      await voiceService.startVoiceListener();
+      const success = await voiceService.startVoiceListener();
+      if (success) {
+        setStatus('LISTENING');
+      } else {
+        setStatus('IDLE');
+      }
     } catch (err) {
       console.error("Failed to start voice:", err);
       setStatus('IDLE');

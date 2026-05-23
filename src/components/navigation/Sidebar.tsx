@@ -41,7 +41,7 @@ export const Sidebar = ({ onSettingsClick }: SidebarProps) => {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10, transition: { duration: 0.1 } }}
-                className="font-mono text-primary-txt font-bold tracking-[0.2em] text-sm whitespace-nowrap"
+                className="font-sans font-bold uppercase tracking-[0.2em] text-sm whitespace-nowrap text-primary-txt"
               >
                 JARVIS
               </motion.span>
@@ -89,7 +89,7 @@ export const Sidebar = ({ onSettingsClick }: SidebarProps) => {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, width: 0, transition: { duration: 0.1 } }}
                     transition={{ delay: index * 0.05 }} 
-                    className="font-mono text-sm whitespace-nowrap overflow-hidden"
+                    className="font-sans text-xs font-semibold uppercase tracking-widest whitespace-nowrap overflow-hidden"
                   >
                     {item.name}
                   </motion.div>
@@ -101,10 +101,10 @@ export const Sidebar = ({ onSettingsClick }: SidebarProps) => {
       </nav>
 
       {/* SETTINGS */}
-      <div className="mt-auto flex flex-col pb-2 px-2 gap-2 border-t border-white/5 pt-2">
+      <div className="mt-auto flex flex-col pb-3 px-2 gap-2 border-t border-white/5 pt-3">
         <button
           onClick={onSettingsClick}
-          className="w-full flex items-center h-10 rounded-md transition-all duration-200 overflow-hidden group text-secondary-txt border border-transparent hover:bg-surface-1/50 hover:text-primary-txt"
+          className="w-full flex items-center h-12 rounded-lg transition-all duration-300 overflow-hidden group text-primary-txt/80 bg-white/[0.02] border border-white/10 hover:border-jarvis-blue/30 hover:bg-jarvis-blue/5 hover:text-white hover:shadow-[0_0_15px_rgba(0,240,255,0.1)]"
           title={!isOpen ? "Settings" : ""}
         >
           <div className="w-12 shrink-0 flex items-center justify-center transition-transform group-hover:rotate-45">
@@ -116,7 +116,7 @@ export const Sidebar = ({ onSettingsClick }: SidebarProps) => {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, width: 0, transition: { duration: 0.1 } }}
-                className="font-mono text-sm whitespace-nowrap overflow-hidden" 
+                className="font-sans text-xs font-semibold uppercase tracking-widest whitespace-nowrap overflow-hidden" 
               >
                 Settings
               </motion.div>

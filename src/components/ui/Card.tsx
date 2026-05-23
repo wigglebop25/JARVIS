@@ -50,7 +50,7 @@ export const Card = ({
           <div className="flex items-center gap-3">
             <div className={`w-2 h-2 rounded-sm ${glow ? 'bg-jarvis-blue shadow-[0_0_8px_#00F0FF]' : 'bg-surface-3'}`} />
             <div>
-              <h3 className="text-primary-txt font-mono font-bold tracking-wide uppercase">
+              <h3 className="text-primary-txt font-sans text-xs font-semibold tracking-wider uppercase">
                 {title}
               </h3>
             </div>

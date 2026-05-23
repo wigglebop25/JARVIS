@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { OfflineChatHistory, Message } from '@/features/mcp/components/offline/OfflineChatHistory';
 import { OfflinePromptBar } from '@/features/mcp/components/offline/OfflinePromptBar';
 import { MCPLoading } from '@/features/mcp/components/MCPLoading';
-import { getRandomMcpResponse } from '@/lib/mcpMockData';
+import { sendPrompt, createSession } from '@/services/chatService';
 
 export const OfflineDashboardPage = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -10,23 +10,52 @@ export const OfflineDashboardPage = () => {
   ]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const sessionInitRef = useRef(false);
+
+  // Initialize a backend session on mount
+  useEffect(() => {
+    if (sessionInitRef.current) return;
+    sessionInitRef.current = true;
+
+    const initSession = async () => {
+      try {
+        const id = await createSession("Offline Session");
+        setSessionId(id);
+        console.log("[OfflineDashboard] Session created:", id);
+      } catch (err) {
+        console.warn("[OfflineDashboard] Backend session creation failed, chat will operate in degraded mode:", err);
+      }
+    };
+    initSession();
+  }, []);
 
   const handleSend = async () => {
     if (!input.trim() || isThinking) return;
 
     const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: input };
     setMessages(prev => [...prev, userMsg]);
-    const currentQuery = input.toLowerCase();
+    const currentInput = input;
     setInput("");
 
     setIsThinking(true);
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    let responseText: string;
 
-    let responseText = getRandomMcpResponse();
-    
-    if (currentQuery.includes("status")) responseText = "CORE_STATUS: All local nodes operational. Network latency < 1ms.";
-    if (currentQuery.includes("who")) responseText = "IDENTITY_AUTH: Seth A. Pinca. Level 5 Administrative Access granted.";
+    try {
+      // Ensure we have a session
+      let sid = sessionId;
+      if (!sid) {
+        sid = await createSession("Offline Session");
+        setSessionId(sid);
+      }
+
+      const response = await sendPrompt(sid, currentInput);
+      responseText = response.message;
+    } catch (err) {
+      console.error("[OfflineDashboard] Backend prompt failed:", err);
+      responseText = `SYSTEM_ERROR: Backend unreachable — ${err}`;
+    }
 
     const botMsg: Message = { 
       id: (Date.now() + 1).toString(), 
@@ -39,17 +68,7 @@ export const OfflineDashboardPage = () => {
   };
 
   return (
-    <div className="h-full w-full flex flex-col bg-offline-surface relative overflow-hidden">
-      
-      <div 
-        className="absolute inset-0 opacity-[0.03] pointer-events-none" 
-        style={{ 
-          backgroundImage: `radial-gradient(var(--color-offline-core) 1px, transparent 1px)`,
-          backgroundSize: '32px 32px' 
-        }} 
-      />
-      
-      <div className="scanline-overlay pointer-events-none" />
+    <div className="h-full w-full flex flex-col bg-offline-bg relative overflow-hidden">
       
       <div className="flex-1 flex flex-col overflow-hidden z-10">
         <OfflineChatHistory messages={messages} />

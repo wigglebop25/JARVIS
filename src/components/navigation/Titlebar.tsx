@@ -27,30 +27,14 @@ export const Titlebar = () => {
     >
       {/* LEFT: Mode & Identity */}
       <div className="flex items-center gap-6">
-        <div className="font-mono text-sm tracking-widest text-secondary-txt pointer-events-none">
-          <span className="text-jarvis-blue font-bold">JARVIS</span>_OS
+        <div className="font-sans text-sm tracking-widest font-bold text-secondary-txt pointer-events-none uppercase">
+          <span className="text-jarvis-blue">JARVIS</span>_OS
         </div>
-        
         <div className="flex items-center gap-3">
           <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-jarvis-blue/5 border border-jarvis-blue/20 rounded-md">
             <Activity size={12} className="text-jarvis-blue animate-pulse" />
             <span className="text-[10px] font-mono text-jarvis-blue/80 uppercase tracking-tighter">Uplink_Established</span>
           </div>
-
-          {/* VOICE TEST BUTTON */}
-          <button 
-            onClick={isListening ? stopListening : startListening}
-            className={`flex items-center gap-2 px-3 py-1 rounded-md border transition-all duration-300 ${
-              isListening 
-                ? 'bg-error-red/10 border-error-red/50 text-error-red shadow-[0_0_10px_rgba(255,0,0,0.2)]' 
-                : 'bg-white/5 border-white/10 text-primary-txt/60 hover:bg-white/10'
-            }`}
-          >
-            {isListening ? <MicOff size={12} className="animate-pulse" /> : <Mic size={12} />}
-            <span className="text-[10px] font-mono uppercase tracking-tighter">
-              {isListening ? 'Listening...' : 'Voice_Test'}
-            </span>
-          </button>
           
           {transcript && (
             <div className="text-[10px] font-mono text-success-green animate-in fade-in slide-in-from-left-2">
@@ -84,7 +68,7 @@ export const Titlebar = () => {
         <div className="relative flex items-center group">
           <Search size={14} className="absolute left-3 text-tertiary-txt pointer-events-none group-focus-within:text-jarvis-blue transition-colors" />
           <input 
-            className="bg-surface-3/30 backdrop-blur-sm pl-9 text-primary-txt text-xs font-mono rounded-full w-48 focus:w-64 py-1.5 focus:outline-none focus:ring-1 focus:ring-jarvis-blue/50 transition-all border border-white/5 focus:border-jarvis-blue/50 placeholder:text-tertiary-txt/50"
+            className="bg-surface-3/30 backdrop-blur-sm pl-9 text-primary-txt text-sm font-sans rounded-full w-48 focus:w-64 py-1.5 focus:outline-none focus:ring-1 focus:ring-jarvis-blue/50 transition-all border border-white/5 focus:border-jarvis-blue/50 placeholder:text-tertiary-txt/50"
             type='text'
             placeholder='COMMAND_SEARCH...'
             value={searchTerm}

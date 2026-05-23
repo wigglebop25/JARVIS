@@ -7,7 +7,6 @@ use crate::commands::chat::*;
 use crate::commands::config::*;
 use crate::commands::skills::*;
 use crate::commands::voice::*;
-use crate::domain::errors::AppError;
 use tauri::{App, Manager};
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
@@ -43,15 +42,18 @@ pub fn run() {
             // Initialize the voice transcription worker in the background
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let voice_state = handlers::voice::init_voice_state(
+                match handlers::voice::init_voice_state(
                     vad_threshold,
                     silence_duration_ms,
                     model_path,
-                )
-                .map_err(|e| {
-                    AppError::VoiceError(format!("failed to initialise voice subsystem {}", e))
-                });
-                handle.manage(voice_state);
+                ) {
+                    Ok(state) => {
+                        handle.manage(state);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to initialize voice subsystem: {:?}", e);
+                    }
+                }
             });
 
             Ok(())
