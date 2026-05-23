@@ -6,7 +6,6 @@ use crate::commands::chat::*;
 use crate::commands::config::*;
 use crate::commands::skills::*;
 use crate::commands::voice::*;
-use crate::domain::errors::AppError;
 use tauri::{App, Manager};
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
@@ -33,24 +32,33 @@ pub fn run() {
             // Load Database
             if let Ok(data_dir) = app.path().app_data_dir() {
                 let db_path = data_dir.join(&db_name);
-                let db = domain::db::DatabaseManager::new(&db_path).map_err(|e| {
-                    AppError::SystemError(format!("Failed to initialize database {}", e))
-                });
-                app.manage(db);
+                match domain::db::DatabaseManager::new(&db_path) {
+                    Ok(db) => {
+                        app.manage(db);
+                    }
+                    Err(e) => {
+                        panic!("Failed to initialize database: {:?}", e);
+                    }
+                }
+            } else {
+                panic!("Failed to resolve app data directory");
             }
 
             // Initialize the voice transcription worker in the background
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let voice_state = handlers::voice::init_voice_state(
+                match handlers::voice::init_voice_state(
                     vad_threshold,
                     silence_duration_ms,
                     model_path,
-                )
-                .map_err(|e| {
-                    AppError::VoiceError(format!("failed to initialise voice subsystem {}", e))
-                });
-                handle.manage(voice_state);
+                ) {
+                    Ok(state) => {
+                        handle.manage(state);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to initialize voice subsystem: {:?}", e);
+                    }
+                }
             });
 
             Ok(())
