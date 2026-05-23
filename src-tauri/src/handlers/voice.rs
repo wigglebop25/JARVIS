@@ -1,5 +1,5 @@
 use crate::domain::errors::AppError;
-use crate::domain::voice::{TranscriptPayload, VoiceState, DEFAULT_MODEL_PATH, DEFAULT_MODEL_URI};
+use crate::domain::voice::{TranscriptPayload, VoiceState, DEFAULT_MODEL_URI};
 use crossbeam_channel::unbounded;
 use jarvis_transcriber::core::config::Config;
 use jarvis_transcriber::transcription::engine::{worker_thread, Command};
@@ -11,6 +11,7 @@ use tauri::{AppHandle, Emitter};
 pub fn init_voice_state(
     vad_threshold: f32,
     silence_duration_ms: u64,
+    model_path: String,
 ) -> Result<VoiceState, AppError> {
     let (command_tx, command_rx) = unbounded();
     let is_transcribing = Arc::new(AtomicBool::new(false));
@@ -38,7 +39,7 @@ pub fn init_voice_state(
             cb_clone,
             config,
             DEFAULT_MODEL_URI.to_string(),
-            DEFAULT_MODEL_PATH.to_string(),
+            model_path,
         );
     });
 

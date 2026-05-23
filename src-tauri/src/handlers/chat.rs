@@ -1,4 +1,4 @@
-use crate::domain::config::AppConfig;
+use crate::domain::config::{AppConfig, Providers};
 use crate::domain::db::DatabaseManager;
 use crate::domain::errors::AppError;
 use agent_rs_lib::agent::memory::context::AgentContextExt;
@@ -48,15 +48,15 @@ pub async fn send_prompt(
     // 4. Build Agent with Auto-Compaction
     let compaction_model = client
         .agent(&config.chat_model)
-        .preamble("Summarize this context briefly, capturing key points.")
+        .preamble(&config.compaction_prompt)
         .build();
 
     let agent = client
         .agent(&config.chat_model)
         .tools(tools)
-        .preamble("You are JARVIS, a helpful AI assistant.")
+        .preamble(&config.system_prompt)
         .build()
-        .with_compaction(2000, compaction_model);
+        .with_compaction(128_000, compaction_model);
 
     // 5. Send Chat
     let response = agent
@@ -72,10 +72,31 @@ pub async fn send_prompt(
 }
 
 pub fn get_providers() -> Result<Vec<String>, AppError> {
-    // Hardcoded for MVP since we use agent_rs_lib directly
-    Ok(vec!["openai".to_string(), "local".to_string()])
+    Ok(Providers::all()
+        .into_iter()
+        .map(|p| p.to_string())
+        .collect())
 }
 
-pub fn set_provider(_provider: String) -> Result<(), AppError> {
+pub fn set_provider(
+    provider: String,
+    config: &std::sync::Mutex<AppConfig>,
+    config_path: Option<&Path>,
+) -> Result<(), AppError> {
+    let provider_enum = provider.parse::<Providers>()
+        .map_err(|e| AppError::SystemError(e))?;
+
+    let mut config_guard = config
+        .lock()
+        .map_err(|e| AppError::SystemError(format!("Lock error: {}", e)))?;
+
+    config_guard.provider = provider_enum;
+
+    if let Some(path) = config_path {
+        config_guard
+            .save_to(path)
+            .map_err(|e| AppError::SystemError(format!("Failed to save config: {}", e)))?;
+    }
+
     Ok(())
 }

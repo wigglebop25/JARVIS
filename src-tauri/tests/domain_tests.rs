@@ -52,3 +52,65 @@ fn test_database_manager() {
     // Clean up
     let _ = fs::remove_file(db_path);
 }
+
+#[test]
+fn test_config_missing_fields_defaults() {
+    let temp_dir = std::env::temp_dir();
+    let config_path = temp_dir.join("jarvis_test_missing_fields.toml");
+    let _ = fs::remove_file(&config_path);
+
+    // Write a TOML string with only the old/subset fields
+    let partial_toml = r#"
+        provider = "openai"
+        vad_threshold = 0.6
+        silence_threshold_rms = 0.02
+        silence_duration_ms = 2000
+        api_key = "test_key"
+        chat_model = "gpt-4"
+        chat_base_url = "https://api.openai.com/v1"
+        mcp_config_path = "mcp_test.json"
+    "#;
+
+    fs::write(&config_path, partial_toml).unwrap();
+
+    // Load configuration – it should deserialize successfully and populate new fields with default values
+    let loaded = AppConfig::load_from(&config_path).unwrap();
+
+    assert_eq!(loaded.provider.to_string(), "openai");
+    assert_eq!(loaded.vad_threshold, 0.6);
+    assert_eq!(loaded.transcription_model_path, "parakeet-tdt-0.6b-v3-int8");
+    assert_eq!(loaded.database_name, "jarvis.db");
+    assert_eq!(loaded.system_prompt, "You are JARVIS, a helpful AI assistant.");
+    assert_eq!(loaded.compaction_prompt, "Summarize this context briefly, capturing key points.");
+
+    // Clean up
+    let _ = fs::remove_file(config_path);
+}
+
+#[test]
+fn test_set_provider() {
+    let temp_dir = std::env::temp_dir();
+    let config_path = temp_dir.join("jarvis_test_set_provider.toml");
+    let _ = fs::remove_file(&config_path);
+
+    let config = AppConfig::default();
+    let mutex = std::sync::Mutex::new(config);
+
+    // Call set_provider
+    jarvis_lib::handlers::chat::set_provider(
+        "gemini".to_string(),
+        &mutex,
+        Some(&config_path),
+    ).unwrap();
+
+    // Verify state was updated
+    let updated = mutex.lock().unwrap();
+    assert_eq!(updated.provider.to_string(), "gemini");
+
+    // Verify it was persisted to disk
+    let loaded = AppConfig::load_from(&config_path).unwrap();
+    assert_eq!(loaded.provider.to_string(), "gemini");
+
+    // Clean up
+    let _ = fs::remove_file(config_path);
+}
