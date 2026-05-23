@@ -8,6 +8,35 @@ export interface Message {
   text: string;
 }
 
+const renderMessageText = (text: string) => {
+  if (!text) return null;
+  const parts = text.split('**');
+  return parts.map((part, i) => {
+    const isBold = i % 2 === 1;
+    const subParts = part.split('`');
+    const renderedSubParts = subParts.map((subPart, j) => {
+      const isCode = j % 2 === 1;
+      if (isCode) {
+        return (
+          <code key={j} className="bg-white/5 border border-white/10 px-1 py-0.5 rounded font-mono text-[12px] text-offline-core">
+            {subPart}
+          </code>
+        );
+      }
+      return subPart;
+    });
+
+    if (isBold) {
+      return (
+        <strong key={i} className="font-extrabold text-white">
+          {renderedSubParts}
+        </strong>
+      );
+    }
+    return <React.Fragment key={i}>{renderedSubParts}</React.Fragment>;
+  });
+};
+
 export const OfflineChatHistory = ({ messages }: { messages: Message[] }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,7 +82,7 @@ export const OfflineChatHistory = ({ messages }: { messages: Message[] }) => {
                 {msg.sender === 'user' ? <User size={16} /> : <Cpu size={16} />}
               </div>
 
-              {/* Chat Card Box */}
+              {/* Chat Box */}
               <div className="flex flex-col gap-1 max-w-3xl">
                 <div className={`
                   border rounded-xl p-4 font-sans text-[14px] leading-relaxed whitespace-pre-wrap selectable-text shadow-lg hover:shadow-xl transition-all duration-300
@@ -73,7 +102,7 @@ export const OfflineChatHistory = ({ messages }: { messages: Message[] }) => {
                       SYS_OK
                     </span>
                   </div>
-                  {msg.text}
+                  {renderMessageText(msg.text)}
                 </div>
               </div>
             </motion.div>

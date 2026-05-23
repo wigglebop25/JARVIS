@@ -13,6 +13,35 @@ interface MCPMessageLogProps {
   onClose: () => void;
 }
 
+const renderMessageText = (text: string) => {
+  if (!text) return null;
+  const parts = text.split('**');
+  return parts.map((part, i) => {
+    const isBold = i % 2 === 1;
+    const subParts = part.split('`');
+    const renderedSubParts = subParts.map((subPart, j) => {
+      const isCode = j % 2 === 1;
+      if (isCode) {
+        return (
+          <code key={j} className="bg-jarvis-blue/10 border border-jarvis-blue/20 px-1 py-0.5 rounded font-mono text-[12px] text-jarvis-blue">
+            {subPart}
+          </code>
+        );
+      }
+      return subPart;
+    });
+
+    if (isBold) {
+      return (
+        <strong key={i} className="font-extrabold text-white">
+          {renderedSubParts}
+        </strong>
+      );
+    }
+    return <React.Fragment key={i}>{renderedSubParts}</React.Fragment>;
+  });
+};
+
 export const MCPMessageLog = ({ messages, onClose }: MCPMessageLogProps) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -57,12 +86,12 @@ export const MCPMessageLog = ({ messages, onClose }: MCPMessageLogProps) => {
             </div>
             
             {/* Message Bubble */}
-            <div className={`p-3 rounded-lg text-sm font-mono ${
+            <div className={`p-3 rounded-lg text-sm font-mono whitespace-pre-wrap ${
               msg.sender === 'user' 
                 ? 'bg-white/5 text-primary-txt rounded-tr-none' 
                 : 'bg-jarvis-blue/10 border border-jarvis-blue/20 text-jarvis-blue rounded-tl-none'
             }`}>
-              {msg.text}
+              {renderMessageText(msg.text)}
             </div>
           </div>
         ))}
