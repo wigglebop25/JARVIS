@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls, Reorder } from 'framer-motion';
 import {
   Cpu, MemoryStick, Wifi, WifiOff, Bluetooth, BluetoothOff,
   Volume2, VolumeX, ChevronRight, ChevronLeft,
-  Activity, HardDrive, X, GripVertical, ExternalLink, Music
+  Activity, HardDrive, X, GripVertical, ExternalLink, Music,
+  Play, Pause
 } from 'lucide-react';
 import { useSystemInfo } from '@/hooks/useSystemInfo';
+import { mediaControls, PlaybackStatus, getMetadata, getPlaybackInfo, isEnabled, getPlaybackStatus, getPosition } from 'tauri-plugin-media-api';
 
 // ─── Telemetry Bar ──────────────────────────────────────────────────────────
 
@@ -82,11 +84,16 @@ interface OfflineTelemetryHUDProps {
 
 export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDProps) => {
   const { systemInfo } = useSystemInfo();
-  
+
   const viewportRef = useRef<HTMLDivElement>(null);
   const cpuDragControls = useDragControls();
   const controlDragControls = useDragControls();
   const spotifyDragControls = useDragControls();
+
+  // Sidebar Reordering controls
+  const sidebarCpuDragControls = useDragControls();
+  const sidebarControlDragControls = useDragControls();
+  const sidebarSpotifyDragControls = useDragControls();
 
   const cpu = systemInfo ? Math.round(systemInfo.cpu_usage) : 0;
   const ram = systemInfo ? Math.round(systemInfo.ram_usage) : 0;
@@ -102,36 +109,195 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
   const [isControlFloated, setIsControlFloated] = useState(false);
   const [isSpotifyFloated, setIsSpotifyFloated] = useState(false);
 
-  // Media Monitor Progress timer
-  const [trackProgress, setTrackProgress] = useState(105); // seconds (1:45)
-  const trackDuration = 200; // seconds (3:20)
+  // Sidebar Layout ordering
+  const [panelOrder, setPanelOrder] = useState<string[]>(['cpu', 'control', 'spotify']);
 
+  // ─── Real Media Session Support ──────────────────────────────────────────
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [trackTitle, setTrackTitle] = useState('Station Calibration');
+  const [trackArtist, setTrackArtist] = useState('Neural Network');
+  const [trackProgress, setTrackProgress] = useState(105); // seconds (1:45)
+  const [trackDuration, setTrackDuration] = useState(200); // seconds (3:20)
+  const [mediaSource, setMediaSource] = useState('Spotify');
+  const [isMediaSupported, setIsMediaSupported] = useState(false);
+  const [hasActiveMedia, setHasActiveMedia] = useState(false);
+  const [coverArt, setCoverArt] = useState<string | null>(null);
+
+  // Initialize and check media session support
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTrackProgress(prev => (prev >= trackDuration ? 0 : prev + 1));
-    }, 1000);
-    return () => clearInterval(interval);
+    let active = true;
+    const initAndCheckSupport = async () => {
+      try {
+        // Initialize our media session first to enable the controls
+        await mediaControls.initialize('jarvis', 'JARVIS Media');
+        // Verify support
+        const supported = await isEnabled();
+        if (active) {
+          setIsMediaSupported(supported);
+        }
+      } catch (err: any) {
+        console.warn('Media controls not supported or outside Tauri environment:', err);
+        if (active) {
+          setIsMediaSupported(false);
+        }
+      }
+    };
+    initAndCheckSupport();
+    return () => { active = false; };
   }, []);
 
+  // Polling loop for active system media controls status
+  useEffect(() => {
+    let active = true;
+
+    if (isMediaSupported) {
+      const interval = setInterval(async () => {
+        try {
+          let metadata: any = null;
+          try {
+            metadata = await getMetadata();
+          } catch (e: any) {
+            console.warn('getMetadata failed:', e);
+          }
+
+          let info: any = null;
+          try {
+            info = await getPlaybackInfo();
+          } catch (e: any) {
+            console.warn('getPlaybackInfo failed:', e);
+          }
+
+          if (!active) return;
+
+          // If getPlaybackInfo failed (very common on Spotify due to unsupported PlaybackRate returning E_POINTER),
+          // fallback to getPlaybackStatus() and getPosition() which are safe.
+          let statusVal = PlaybackStatus.Stopped;
+          let posVal = 0;
+
+          if (info) {
+            statusVal = info.status;
+            posVal = info.position || 0;
+          } else {
+            try {
+              statusVal = await getPlaybackStatus();
+              posVal = await getPosition();
+            } catch (fallbackErr: any) {
+              console.warn('Playback status/position fallback failed:', fallbackErr);
+            }
+          }
+
+
+
+          if (metadata && (metadata.title || metadata.artist)) {
+            setHasActiveMedia(true);
+            setTrackTitle(metadata.title || 'Unknown Title');
+            setTrackArtist(metadata.artist || 'Unknown Artist');
+            setTrackProgress(posVal);
+
+            if (metadata.duration && metadata.duration > 0) {
+              setTrackDuration(metadata.duration);
+            } else {
+              setTrackDuration(0); // Display as --:-- if unavailable
+            }
+
+            setIsPlaying(statusVal === PlaybackStatus.Playing);
+
+            // Handle Album Cover Image Data
+            if (metadata.artworkData) {
+              const src = metadata.artworkData.startsWith('data:')
+                ? metadata.artworkData
+                : `data:image/png;base64,${metadata.artworkData}`;
+              setCoverArt(src);
+            } else if (metadata.artworkUrl) {
+              setCoverArt(metadata.artworkUrl);
+            } else {
+              setCoverArt(null);
+            }
+
+            if (metadata.albumArtist) {
+              setMediaSource(metadata.albumArtist);
+            } else if (metadata.album) {
+              setMediaSource(metadata.album);
+            } else {
+              setMediaSource('System Player');
+            }
+          } else {
+            // No active media metadata
+            setHasActiveMedia(false);
+            setIsPlaying(false);
+          }
+        } catch (err: any) {
+          console.warn('Failed to get active system media details:', err);
+        }
+      }, 1000);
+
+      return () => {
+        active = false;
+        clearInterval(interval);
+      };
+    } else {
+      // Fallback: Mock timer loop for development/testing
+      const interval = setInterval(() => {
+        if (isPlaying) {
+          setTrackProgress(prev => (prev >= trackDuration ? 0 : prev + 1));
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isMediaSupported, isPlaying, trackDuration]);
+
+  const handleTogglePlayPause = async () => {
+    if (!isMediaSupported) {
+      setIsPlaying(!isPlaying);
+      return;
+    }
+    try {
+      await mediaControls.togglePlayPause();
+      const info = await getPlaybackInfo();
+      if (info) {
+        setIsPlaying(info.status === PlaybackStatus.Playing);
+      } else {
+        setIsPlaying(!isPlaying);
+      }
+    } catch (err) {
+      console.warn('Failed to toggle play/pause:', err);
+      setIsPlaying(!isPlaying);
+    }
+  };
+
   const formatTime = (secs: number) => {
+    if (secs < 0) return '0:00';
     const m = Math.floor(secs / 60);
-    const s = secs % 60;
+    const s = Math.floor(secs % 60);
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const progressPercent = (trackProgress / trackDuration) * 100;
+  const formatDuration = (secs: number) => {
+    if (secs <= 0) return '--:--';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const progressPercent = trackDuration > 0 ? (trackProgress / trackDuration) * 100 : 0;
 
   // ─── Renderers: Hardware Telemetry ───
-  const renderHardwareTelemetry = (isFloated: boolean, onDock: () => void, dragHandleProps?: any) => (
+  const renderHardwareTelemetry = (isFloated: boolean, onDock: () => void, dragHandleProps?: any, sidebarDragHandleProps?: any) => (
     <div className={`${isFloated ? 'p-4' : ''}`}>
-      <div 
+      <div
         {...dragHandleProps}
         className={`flex items-center gap-2 mb-4 select-none ${isFloated ? 'cursor-grab active:cursor-grabbing bg-black/10 -mx-4 -mt-4 p-4 border-b border-white/5' : ''}`}
       >
         {isFloated ? (
           <GripVertical size={14} className="text-secondary-txt/45" />
         ) : (
-          <Activity size={12} className="text-offline-core/60" />
+          <>
+            <div {...sidebarDragHandleProps} className="cursor-grab active:cursor-grabbing text-secondary-txt/30 hover:text-offline-core transition-colors p-1 -ml-1 flex items-center justify-center">
+              <GripVertical size={12} />
+            </div>
+            <Activity size={12} className="text-offline-core/60" />
+          </>
         )}
         <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-offline-core/80 font-bold">
           Hardware_Telemetry
@@ -142,7 +308,7 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
           </span>
         )}
         {isFloated ? (
-          <button 
+          <button
             onClick={(e) => { e.stopPropagation(); onDock(); }}
             className="ml-2 text-secondary-txt/60 hover:text-error-red transition-colors p-1 rounded hover:bg-white/5 cursor-pointer"
             title="Dock Panel"
@@ -177,22 +343,27 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
   );
 
   // ─── Renderers: Control Deck ───
-  const renderControlDeck = (isFloated: boolean, onDock: () => void, dragHandleProps?: any) => (
+  const renderControlDeck = (isFloated: boolean, onDock: () => void, dragHandleProps?: any, sidebarDragHandleProps?: any) => (
     <div className={`${isFloated ? 'p-4' : ''}`}>
-      <div 
+      <div
         {...dragHandleProps}
         className={`flex items-center gap-2 mb-3 select-none ${isFloated ? 'cursor-grab active:cursor-grabbing bg-black/10 -mx-4 -mt-4 p-4 border-b border-white/5' : ''}`}
       >
         {isFloated ? (
           <GripVertical size={14} className="text-secondary-txt/45" />
         ) : (
-          <Volume2 size={12} className="text-offline-core/60" />
+          <>
+            <div {...sidebarDragHandleProps} className="cursor-grab active:cursor-grabbing text-secondary-txt/30 hover:text-offline-core transition-colors p-1 -ml-1 flex items-center justify-center">
+              <GripVertical size={12} />
+            </div>
+            <Volume2 size={12} className="text-offline-core/60" />
+          </>
         )}
         <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-offline-core/80 font-bold">
           Control_Deck
         </h3>
         {isFloated ? (
-          <button 
+          <button
             onClick={(e) => { e.stopPropagation(); onDock(); }}
             className="ml-auto text-secondary-txt/60 hover:text-error-red transition-colors p-1 rounded hover:bg-white/5 cursor-pointer"
             title="Dock Panel"
@@ -266,93 +437,158 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
   );
 
   // ─── Renderers: Spotify Deck ───
-  const renderSpotifyDeck = (isFloated: boolean, onDock: () => void, dragHandleProps?: any) => (
-    <div className={`${isFloated ? 'p-4' : ''}`}>
-      <div 
-        {...dragHandleProps}
-        className={`flex items-center gap-2 mb-3 select-none ${isFloated ? 'cursor-grab active:cursor-grabbing bg-black/10 -mx-4 -mt-4 p-4 border-b border-white/5' : ''}`}
-      >
-        {isFloated ? (
-          <GripVertical size={14} className="text-secondary-txt/45" />
-        ) : (
-          <Music size={12} className="text-offline-core/60" />
-        )}
-        <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-offline-core/80 font-bold">
-          Media_Monitor
-        </h3>
-        <span className="ml-auto text-[8px] font-mono text-offline-core/50 uppercase tracking-widest bg-offline-core/5 border border-offline-core/10 px-1.5 py-0.5 rounded">
-          Spotify
-        </span>
-        {isFloated ? (
-          <button 
-            onClick={(e) => { e.stopPropagation(); onDock(); }}
-            className="ml-2 text-secondary-txt/60 hover:text-error-red transition-colors p-1 rounded hover:bg-white/5 cursor-pointer"
-            title="Dock Panel"
-          >
-            <X size={14} />
-          </button>
-        ) : (
-          <button
-            onClick={() => setIsSpotifyFloated(true)}
-            className="ml-2 text-secondary-txt/40 hover:text-offline-core transition-colors p-1 rounded hover:bg-white/5 cursor-pointer"
-            title="Float Panel"
-          >
-            <ExternalLink size={12} />
-          </button>
-        )}
+  const renderSpotifyDeck = (isFloated: boolean, onDock: () => void, dragHandleProps?: any, sidebarDragHandleProps?: any) => {
+    // Inner Audio Visualizer component
+    const AudioVisualizer = ({ isPlaying }: { isPlaying: boolean }) => (
+      <div className="flex items-end gap-[2px] h-3.5 shrink-0 px-1">
+        {Array.from({ length: 6 }).map((_, i) => {
+          const duration = 0.55 + (i % 3) * 0.15;
+          const delay = (i % 2) * 0.08;
+          return (
+            <motion.div
+              key={i}
+              animate={
+                isPlaying
+                  ? {
+                    height: ["15%", "100%", "15%"],
+                  }
+                  : {
+                    height: "15%",
+                  }
+              }
+              transition={{
+                duration: duration,
+                repeat: Infinity,
+                delay: delay,
+                ease: "easeInOut",
+              }}
+              className="w-[2px] bg-offline-core/80 rounded-full"
+            />
+          );
+        })}
       </div>
+    );
 
-      <div className="bg-black/20 border border-white/5 rounded-lg p-3 flex gap-3.5 items-center">
-        {/* Stylized CD Cover */}
-        <div className="w-12 h-12 rounded bg-gradient-to-br from-offline-core/20 to-offline-core/5 border border-offline-core/25 flex items-center justify-center relative overflow-hidden shrink-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.8)_100%)] z-10" />
-          <motion.div 
-            animate={{ rotate: 360 }}
-            transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-            className="w-8 h-8 rounded-full border border-dashed border-offline-core/30 flex items-center justify-center opacity-65"
-          >
-            <div className="w-3.5 h-3.5 rounded-full border border-offline-core/20 bg-black/60" />
-          </motion.div>
-          <div className="absolute inset-0 bg-offline-core/5 opacity-50 animate-pulse" />
+    return (
+      <div className={`${isFloated ? 'p-4' : ''}`}>
+        <div
+          {...dragHandleProps}
+          className={`flex items-center gap-2 mb-3 select-none ${isFloated ? 'cursor-grab active:cursor-grabbing bg-black/10 -mx-4 -mt-4 p-4 border-b border-white/5' : ''}`}
+        >
+          {isFloated ? (
+            <GripVertical size={14} className="text-secondary-txt/45" />
+          ) : (
+            <>
+              <div {...sidebarDragHandleProps} className="cursor-grab active:cursor-grabbing text-secondary-txt/30 hover:text-offline-core transition-colors p-1 -ml-1 flex items-center justify-center">
+                <GripVertical size={12} />
+              </div>
+              <Music size={12} className="text-offline-core/60" />
+            </>
+          )}
+          <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-offline-core/80 font-bold">
+            Media_Monitor
+          </h3>
+          <span className="ml-auto text-[8px] font-mono text-offline-core/50 uppercase tracking-widest bg-offline-core/5 border border-offline-core/10 px-1.5 py-0.5 rounded">
+            {isMediaSupported && !hasActiveMedia ? 'Inactive' : mediaSource}
+          </span>
+          {isFloated ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDock(); }}
+              className="ml-2 text-secondary-txt/60 hover:text-error-red transition-colors p-1 rounded hover:bg-white/5 cursor-pointer"
+              title="Dock Panel"
+            >
+              <X size={14} />
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsSpotifyFloated(true)}
+              className="ml-2 text-secondary-txt/40 hover:text-offline-core transition-colors p-1 rounded hover:bg-white/5 cursor-pointer"
+              title="Float Panel"
+            >
+              <ExternalLink size={12} />
+            </button>
+          )}
         </div>
 
-        {/* Track details */}
-        <div className="flex-1 min-w-0 flex flex-col justify-between h-12 py-0.5">
-          <div className="min-w-0">
-            <h4 className="text-xs font-mono font-bold text-primary-txt truncate uppercase tracking-wide leading-tight">
-              Station Calibration
-            </h4>
-            <p className="text-[9px] font-mono text-secondary-txt/60 truncate uppercase tracking-widest mt-0.5">
-              Neural Network
-            </p>
+        <div className="bg-black/20 border border-white/5 rounded-lg p-3 space-y-3">
+          <div className="flex gap-3 items-center">
+            {/* Album Cover / CD Cover */}
+            <div className="w-12 h-12 rounded bg-gradient-to-br from-offline-core/20 to-offline-core/5 border border-offline-core/25 flex items-center justify-center relative overflow-hidden shrink-0 shadow-lg">
+              {coverArt ? (
+                <img
+                  src={coverArt}
+                  alt="Album Art"
+                  className="w-full h-full object-cover relative z-20"
+                />
+              ) : (
+                <>
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.8)_100%)] z-10" />
+                  <motion.div
+                    animate={isPlaying ? { rotate: 360 } : {}}
+                    transition={isPlaying ? { duration: 15, repeat: Infinity, ease: "linear" } : {}}
+                    className="w-8 h-8 rounded-full border border-dashed border-offline-core/30 flex items-center justify-center opacity-65"
+                  >
+                    <div className="w-3.5 h-3.5 rounded-full border border-offline-core/20 bg-black/60" />
+                  </motion.div>
+                  <div className="absolute inset-0 bg-offline-core/5 opacity-50 animate-pulse" />
+                </>
+              )}
+            </div>
+
+            {/* Track details */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center h-12 py-0.5">
+              <h4 className="text-xs font-mono font-bold text-primary-txt truncate uppercase tracking-wide leading-tight">
+                {isMediaSupported && !hasActiveMedia ? 'Awaiting Media' : trackTitle}
+              </h4>
+              <p className="text-[9px] font-mono text-secondary-txt/60 truncate uppercase tracking-widest mt-0.5">
+                {isMediaSupported && !hasActiveMedia ? 'System Idle' : trackArtist}
+              </p>
+            </div>
+
+            {/* Live Audio Visualizer */}
+            <div className="h-12 flex items-center shrink-0">
+              <AudioVisualizer isPlaying={isPlaying && hasActiveMedia} />
+            </div>
+
+            {/* Play/Pause Button on the same row! */}
+            <button
+              onClick={handleTogglePlayPause}
+              className="w-8 h-8 rounded-full bg-offline-core/10 border border-offline-core/30 flex items-center justify-center text-offline-core hover:bg-offline-core/25 active:scale-95 transition-all shadow-[0_0_10px_rgba(244,244,245,0.05)] cursor-pointer shrink-0"
+              title={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
+            </button>
           </div>
 
-          {/* Progress */}
-          <div className="space-y-1">
+          {/* Progress Slider (Row 2) */}
+          <div className="space-y-1 pt-0.5">
             <div className="h-1 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
-              <div 
+              <div
                 className="h-full bg-offline-core rounded-full"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
             <div className="flex items-center justify-between text-[8px] font-mono text-secondary-txt/55 font-semibold tracking-wider">
               <span>{formatTime(trackProgress)}</span>
-              <span>{formatTime(trackDuration)}</span>
+              <span>{formatDuration(trackDuration)}</span>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // ─── Renderers: Sidebar Placeholders ───
-  const renderHardwarePlaceholder = () => (
-    <div className="border border-dashed border-white/10 rounded-lg p-4 flex flex-col items-center justify-center min-h-[160px] bg-black/5 select-none">
+  const renderHardwarePlaceholder = (sidebarDragHandleProps?: any) => (
+    <div className="border border-dashed border-white/10 rounded-lg p-4 flex flex-col items-center justify-center min-h-[160px] bg-black/5 select-none relative">
+      <div {...sidebarDragHandleProps} className="absolute top-2 left-2 cursor-grab active:cursor-grabbing text-secondary-txt/30 hover:text-offline-core transition-colors p-1">
+        <GripVertical size={12} />
+      </div>
       <Activity size={18} className="text-secondary-txt/20 mb-2" />
       <span className="text-[10px] font-mono text-secondary-txt/30 uppercase tracking-wider">
         Telemetry_Floated
       </span>
-      <button 
+      <button
         onClick={() => setIsCpuFloated(false)}
         className="mt-2 text-[9px] font-mono text-offline-core/60 hover:text-offline-core hover:underline cursor-pointer"
       >
@@ -361,13 +597,16 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
     </div>
   );
 
-  const renderControlPlaceholder = () => (
-    <div className="border border-dashed border-white/10 rounded-lg p-4 flex flex-col items-center justify-center min-h-[160px] bg-black/5 select-none">
+  const renderControlPlaceholder = (sidebarDragHandleProps?: any) => (
+    <div className="border border-dashed border-white/10 rounded-lg p-4 flex flex-col items-center justify-center min-h-[160px] bg-black/5 select-none relative">
+      <div {...sidebarDragHandleProps} className="absolute top-2 left-2 cursor-grab active:cursor-grabbing text-secondary-txt/30 hover:text-offline-core transition-colors p-1">
+        <GripVertical size={12} />
+      </div>
       <Volume2 size={18} className="text-secondary-txt/20 mb-2" />
       <span className="text-[10px] font-mono text-secondary-txt/30 uppercase tracking-wider">
         Controls_Floated
       </span>
-      <button 
+      <button
         onClick={() => setIsControlFloated(false)}
         className="mt-2 text-[9px] font-mono text-offline-core/60 hover:text-offline-core hover:underline cursor-pointer"
       >
@@ -376,13 +615,16 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
     </div>
   );
 
-  const renderSpotifyPlaceholder = () => (
-    <div className="border border-dashed border-white/10 rounded-lg p-4 flex flex-col items-center justify-center min-h-[120px] bg-black/5 select-none">
+  const renderSpotifyPlaceholder = (sidebarDragHandleProps?: any) => (
+    <div className="border border-dashed border-white/10 rounded-lg p-4 flex flex-col items-center justify-center min-h-[120px] bg-black/5 select-none relative">
+      <div {...sidebarDragHandleProps} className="absolute top-2 left-2 cursor-grab active:cursor-grabbing text-secondary-txt/30 hover:text-offline-core transition-colors p-1">
+        <GripVertical size={12} />
+      </div>
       <Music size={18} className="text-secondary-txt/20 mb-2" />
       <span className="text-[10px] font-mono text-secondary-txt/30 uppercase tracking-wider">
         Media_Floated
       </span>
-      <button 
+      <button
         onClick={() => setIsSpotifyFloated(false)}
         className="mt-2 text-[9px] font-mono text-offline-core/60 hover:text-offline-core hover:underline cursor-pointer"
       >
@@ -478,27 +720,99 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
             className="h-full bg-offline-surface-dark border-l border-offline-border/60 overflow-hidden shrink-0 relative"
           >
             <div className="w-72 h-full overflow-y-auto custom-scrollbar p-4 flex flex-col gap-5">
-              
-              {/* Telemetry Panel Items */}
-              {isCpuFloated ? renderHardwarePlaceholder() : renderHardwareTelemetry(false, () => {})}
-              
-              {/* Controls Panel Items */}
-              {isControlFloated ? renderControlPlaceholder() : renderControlDeck(false, () => {})}
-              
-              {/* Media Monitor Panel Items */}
-              {isSpotifyFloated ? renderSpotifyPlaceholder() : renderSpotifyDeck(false, () => {})}
+              <Reorder.Group
+                axis="y"
+                values={panelOrder}
+                onReorder={setPanelOrder}
+                className="flex flex-col gap-5"
+              >
+                {panelOrder.map((panelId) => {
+                  if (panelId === 'cpu') {
+                    return (
+                      <Reorder.Item
+                        key="cpu"
+                        value="cpu"
+                        dragListener={false}
+                        dragControls={sidebarCpuDragControls}
+                        className="outline-none"
+                      >
+                        {isCpuFloated
+                          ? renderHardwarePlaceholder({
+                            onPointerDown: (e: React.PointerEvent) => sidebarCpuDragControls.start(e)
+                          })
+                          : renderHardwareTelemetry(
+                            false,
+                            () => { },
+                            undefined,
+                            {
+                              onPointerDown: (e: React.PointerEvent) => sidebarCpuDragControls.start(e)
+                            }
+                          )}
+                      </Reorder.Item>
+                    );
+                  }
+                  if (panelId === 'control') {
+                    return (
+                      <Reorder.Item
+                        key="control"
+                        value="control"
+                        dragListener={false}
+                        dragControls={sidebarControlDragControls}
+                        className="outline-none"
+                      >
+                        {isControlFloated
+                          ? renderControlPlaceholder({
+                            onPointerDown: (e: React.PointerEvent) => sidebarControlDragControls.start(e)
+                          })
+                          : renderControlDeck(
+                            false,
+                            () => { },
+                            undefined,
+                            {
+                              onPointerDown: (e: React.PointerEvent) => sidebarControlDragControls.start(e)
+                            }
+                          )}
+                      </Reorder.Item>
+                    );
+                  }
+                  if (panelId === 'spotify') {
+                    return (
+                      <Reorder.Item
+                        key="spotify"
+                        value="spotify"
+                        dragListener={false}
+                        dragControls={sidebarSpotifyDragControls}
+                        className="outline-none"
+                      >
+                        {isSpotifyFloated
+                          ? renderSpotifyPlaceholder({
+                            onPointerDown: (e: React.PointerEvent) => sidebarSpotifyDragControls.start(e)
+                          })
+                          : renderSpotifyDeck(
+                            false,
+                            () => { },
+                            undefined,
+                            {
+                              onPointerDown: (e: React.PointerEvent) => sidebarSpotifyDragControls.start(e)
+                            }
+                          )}
+                      </Reorder.Item>
+                    );
+                  }
+                  return null;
+                })}
+              </Reorder.Group>
 
               {/* ── Footer: Telemetry Mode State ── */}
               <div className="mt-auto pt-3 border-t border-white/5">
                 <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.15em] text-success-green/60">
-                  <div className={`w-1.5 h-1.5 rounded-full ${
-                    systemInfo ? 'bg-success-green/60' : 'bg-secondary-txt/30 animate-pulse'
-                  }`} />
+                  <div className={`w-1.5 h-1.5 rounded-full ${systemInfo ? 'bg-success-green/60' : 'bg-secondary-txt/30 animate-pulse'
+                    }`} />
                   Telemetry_Mode: {systemInfo ? 'Live' : 'Awaiting'}
                 </div>
                 <p className="text-[10px] font-mono text-secondary-txt/50 mt-1 leading-relaxed">
-                  {systemInfo 
-                    ? 'Streaming telemetry directly from Tauri backend.' 
+                  {systemInfo
+                    ? 'Streaming telemetry directly from Tauri backend.'
                     : 'Waiting for backend telemetry stream...'}
                 </p>
               </div>

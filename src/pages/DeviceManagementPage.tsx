@@ -10,8 +10,8 @@ import { useSystemData } from '@/hooks/useSystemData';
 export const DeviceManagementPage = () => {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   
-  // Grab the devices array AND the addDevice function from the hook
-  const { devices, addDevice } = useSystemData(); 
+  // Grab the devices array and control functions from the hook
+  const { devices, addDevice, rebootDevice, toggleDeviceStatus } = useSystemData(); 
   
   const activeCount = devices.filter(d => d.status === 'online').length;
 
@@ -49,7 +49,11 @@ export const DeviceManagementPage = () => {
       >
         {devices.map((device) => (
           <motion.div key={device.id} variants={systemBootItem}>
-            <DeviceCard device={device} />
+            <DeviceCard 
+              device={device} 
+              onReboot={rebootDevice}
+              onToggleStatus={toggleDeviceStatus}
+            />
           </motion.div>
         ))}
       </motion.div>
