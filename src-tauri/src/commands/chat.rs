@@ -49,6 +49,7 @@ pub async fn create_session(
 pub async fn prompt(
     session_id: String,
     input: String,
+    attachments: Option<Vec<String>>,
     config: State<'_, std::sync::Mutex<AppConfig>>,
     db: State<'_, DatabaseManager>,
 ) -> Result<ChatResponse, AppError> {
@@ -60,7 +61,7 @@ pub async fn prompt(
     };
     let provider = config_clone.provider.to_string();
     let repo = SessionRepository::new(&db);
-    let response = send_prompt(&session_id, &input, &config_clone, &repo).await?;
+    let response = send_prompt(&session_id, &input, attachments.as_deref(), &config_clone, &repo).await?;
 
     Ok(ChatResponse {
         message: response,
