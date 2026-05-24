@@ -24,7 +24,7 @@ pub fn run() {
                 domain::config::AppConfig::default()
             };
 
-            let vad_threshold = config.vad_threshold;
+            let silence_threshold_rms = config.silence_threshold_rms;
             let silence_duration_ms = config.silence_duration_ms;
             let model_path = config.transcription_model_path.clone();
             let db_name = config.database_name.clone();
@@ -38,7 +38,7 @@ pub fn run() {
 
             // Initialize the voice transcription worker
             let voice_state = handlers::voice::init_voice_state(
-                vad_threshold,
+                silence_threshold_rms,
                 silence_duration_ms,
                 model_path,
             )?;

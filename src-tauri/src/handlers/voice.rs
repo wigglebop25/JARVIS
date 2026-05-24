@@ -9,7 +9,7 @@ use std::thread;
 use tauri::{AppHandle, Emitter};
 
 pub fn init_voice_state(
-    vad_threshold: f32,
+    silence_threshold_rms: f32,
     silence_duration_ms: u64,
     model_path: String,
 ) -> Result<VoiceState, AppError> {
@@ -20,7 +20,7 @@ pub fn init_voice_state(
     let on_complete_callback = Arc::new(Mutex::new(None)); // unused – we poll instead
 
     let config = Config {
-        silence_threshold_rms: vad_threshold,
+        silence_threshold_rms,
         silence_duration: (silence_duration_ms as f32) / 1000.0,
     };
 
