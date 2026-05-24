@@ -6,6 +6,7 @@ pub mod infrastructure;
 use crate::commands::chat::*;
 use crate::commands::config::*;
 use crate::commands::skills::*;
+use crate::commands::system::*;
 use crate::commands::voice::*;
 use tauri::Manager;
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -44,6 +45,15 @@ pub fn run() {
             )?;
             app.manage(voice_state);
 
+            // Initialize the system telemetry service and spawn background worker thread
+            let system_service = infrastructure::system::LocalSystemInfoService::new();
+            app.manage(system_service);
+
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                infrastructure::system::start_telemetry_worker(app_handle);
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -64,6 +74,8 @@ pub fn run() {
             // Skills (jarvis-skills MCP — stubs)
             get_device_info,
             list_skills,
+            // System Telemetry
+            get_system_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
