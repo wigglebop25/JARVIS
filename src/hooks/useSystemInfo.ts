@@ -1,36 +1,25 @@
 import { useEffect, useState } from 'react';
-import { getSystemInfo, onTelemetryReceived, SystemInfo, isTelemetrySimulated } from '@/services/system.service';
+import { getSystemInfo, onTelemetryReceived, SystemInfo, isTelemetryLive } from '@/services/system.service';
 
 export const useSystemInfo = () => {
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-  const [isSimulated, setIsSimulated] = useState(isTelemetrySimulated());
 
   useEffect(() => {
     // Fetch initial cached state immediately
     getSystemInfo().then((info) => {
-      setSystemInfo(info);
-      setIsSimulated(isTelemetrySimulated());
+      if (info) setSystemInfo(info);
     }).catch(console.error);
 
-    // Subscribe to live events
-    let unlisten: (() => void) | undefined;
-    const setupListener = async () => {
-      try {
-        unlisten = await onTelemetryReceived((info) => {
-          setSystemInfo(info);
-          setIsSimulated(isTelemetrySimulated());
-        });
-      } catch (err) {
-        console.error('Failed to subscribe to telemetry:', err);
-      }
-    };
-    setupListener();
+    // Subscribe to live events via the centralized bus
+    const unlisten = onTelemetryReceived((info) => {
+      setSystemInfo(info);
+    });
 
     // Clean up subscription on unmount
     return () => {
-      if (unlisten) unlisten();
+      unlisten();
     };
   }, []);
 
-  return { systemInfo, isSimulated };
+  return { systemInfo };
 };

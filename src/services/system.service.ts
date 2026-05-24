@@ -14,123 +14,124 @@ const isTauri = () => {
   return typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
 };
 
-let useSimulationMode = false;
+// ─── Centralized Telemetry Bus ──────────────────────────────────────────────
+// Instead of each subscriber independently racing between real/simulated modes,
+// we use a single shared bus that resolves the data source ONCE and broadcasts
+// to all listeners through a simple pub/sub pattern.
 
-export function isTelemetrySimulated(): boolean {
-  return useSimulationMode;
+type TelemetryCallback = (info: SystemInfo) => void;
+
+let busInitialized = false;
+let busListeners: TelemetryCallback[] = [];
+let busCleanup: (() => void) | null = null;
+let latestInfo: SystemInfo | null = null;
+let telemetrySourceResolved = false;
+let telemetryIsLive = false;
+
+function broadcast(info: SystemInfo) {
+  latestInfo = info;
+  busListeners.forEach(cb => cb(info));
+}
+
+function initBus() {
+  if (busInitialized) return;
+  busInitialized = true;
+
+  if (!isTauri()) {
+    // Not in Tauri — no backend available, just return without setting up anything
+    // The UI will show '--' / null values until real data arrives
+    console.info('[SystemService] Non-Tauri environment detected. Telemetry will remain unavailable.');
+    telemetrySourceResolved = true;
+    telemetryIsLive = false;
+    return;
+  }
+
+  // We're in Tauri — set up the real event listener
+  let unlistenFn: UnlistenFn | null = null;
+
+  const setup = async () => {
+    try {
+      unlistenFn = await listen<SystemInfo>('system-telemetry', (event) => {
+        if (!telemetrySourceResolved) {
+          telemetrySourceResolved = true;
+          telemetryIsLive = true;
+          console.info('[SystemService] Live telemetry stream established from backend.');
+        }
+        broadcast(event.payload);
+      });
+
+      busCleanup = () => {
+        if (unlistenFn) unlistenFn();
+      };
+    } catch (err) {
+      console.warn('[SystemService] system-telemetry listener setup failed:', err);
+      telemetrySourceResolved = true;
+      telemetryIsLive = false;
+    }
+  };
+
+  setup();
 }
 
 /**
  * Fetches the initial system telemetry cached on the backend.
  * Crucial to prevent layout shifting/loading stubs on component mount.
  */
-export async function getSystemInfo(): Promise<SystemInfo> {
-  if (!isTauri() || useSimulationMode) {
-    return getMockSystemInfo();
+export async function getSystemInfo(): Promise<SystemInfo | null> {
+  // Return cached data if we have it
+  if (latestInfo) return latestInfo;
+
+  if (!isTauri()) {
+    return null;
   }
+
   try {
-    return await invoke<SystemInfo>('get_system_info');
+    const info = await invoke<SystemInfo>('get_system_info');
+    latestInfo = info;
+    return info;
   } catch (err) {
-    console.warn('[SystemService] get_system_info invoke failed, switching to simulation mode:', err);
-    useSimulationMode = true;
-    return getMockSystemInfo();
+    console.warn('[SystemService] get_system_info invoke failed:', err);
+    return null;
   }
 }
 
 /**
  * Subscribes to live system telemetry updates emitted by the backend worker.
- * @param callback Called every 3 seconds with fresh system telemetry.
+ * Uses a centralized bus so the data source is resolved once, not per-subscriber.
+ * @param callback Called every ~3 seconds with fresh system telemetry.
  */
-export async function onTelemetryReceived(
-  callback: (info: SystemInfo) => void
-): Promise<UnlistenFn> {
-  if (!isTauri() || useSimulationMode) {
-    return setupMockTelemetryInterval(callback);
+export function onTelemetryReceived(
+  callback: TelemetryCallback
+): () => void {
+  // Ensure the bus is initialized (idempotent)
+  initBus();
+
+  // Register the listener
+  busListeners.push(callback);
+
+  // If we already have data, deliver it immediately so new subscribers don't see '--'
+  if (latestInfo) {
+    callback(latestInfo);
   }
 
-  let receivedPacket = false;
-  let unlistenFn: UnlistenFn | null = null;
-  let mockUnlisten: UnlistenFn | null = null;
-
-  const fallbackTimeout = setTimeout(() => {
-    if (!receivedPacket) {
-      console.info('[SystemService] No telemetry event received from backend in 1.5s, falling back to simulation.');
-      useSimulationMode = true;
-      mockUnlisten = setupMockTelemetryInterval(callback);
-    }
-  }, 1500);
-
-  try {
-    unlistenFn = await listen<SystemInfo>('system-telemetry', (event) => {
-      receivedPacket = true;
-      clearTimeout(fallbackTimeout);
-      callback(event.payload);
-    });
-
-    return () => {
-      clearTimeout(fallbackTimeout);
-      if (unlistenFn) unlistenFn();
-      if (mockUnlisten) mockUnlisten();
-    };
-  } catch (err) {
-    console.warn('[SystemService] system-telemetry listener setup failed, using fallback:', err);
-    clearTimeout(fallbackTimeout);
-    return setupMockTelemetryInterval(callback);
-  }
-}
-
-// ─── Fallback / Simulation Helpers ──────────────────────────────────────────
-
-function getMockSystemInfo(): SystemInfo {
-  return {
-    time: new Date().toISOString(),
-    cpu_temperature: 38.4,
-    username: 'Seth',
-    cpu_usage: 12,
-    ram_usage: 44,
-    disk_usage: 68,
-  };
-}
-
-let mockListeners: Array<(info: SystemInfo) => void> = [];
-let mockIntervalId: NodeJS.Timeout | null = null;
-let lastMockInfo: SystemInfo = getMockSystemInfo();
-
-function setupMockTelemetryInterval(callback: (info: SystemInfo) => void): UnlistenFn {
-  mockListeners.push(callback);
-  
-  // Deliver the last computed state immediately so there is no 3-second lag on mount
-  callback(lastMockInfo);
-
-  if (!mockIntervalId) {
-    let cpu = lastMockInfo.cpu_usage;
-    let ram = lastMockInfo.ram_usage;
-    let temp = lastMockInfo.cpu_temperature || 38;
-
-    mockIntervalId = setInterval(() => {
-      cpu = Math.min(100, Math.max(5, cpu + (Math.random() * 12 - 6)));
-      ram = Math.min(100, Math.max(20, ram + (Math.random() * 6 - 3)));
-      temp = Math.min(85, Math.max(30, temp + (Math.random() * 4 - 2)));
-
-      lastMockInfo = {
-        time: new Date().toISOString(),
-        cpu_temperature: parseFloat(temp.toFixed(1)),
-        username: 'Seth',
-        cpu_usage: Math.round(cpu),
-        ram_usage: Math.round(ram),
-        disk_usage: 68,
-      };
-
-      // Broadcast changes to all subscribers
-      mockListeners.forEach(listener => listener(lastMockInfo));
-    }, 3000);
-  }
-
+  // Return an unsubscribe function
   return () => {
-    mockListeners = mockListeners.filter(listener => listener !== callback);
-    if (mockListeners.length === 0 && mockIntervalId) {
-      clearInterval(mockIntervalId);
-      mockIntervalId = null;
+    busListeners = busListeners.filter(cb => cb !== callback);
+    // If no more listeners and we have a cleanup function, tear it down
+    if (busListeners.length === 0 && busCleanup) {
+      busCleanup();
+      busCleanup = null;
+      busInitialized = false;
+      telemetrySourceResolved = false;
+      latestInfo = null;
     }
   };
+}
+
+/**
+ * Returns whether telemetry is coming from a live backend source.
+ * Only meaningful after the first telemetry event has been received.
+ */
+export function isTelemetryLive(): boolean {
+  return telemetryIsLive;
 }

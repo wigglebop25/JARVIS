@@ -1,4 +1,4 @@
-import { Shield, HardDrive, Cpu, Lock } from 'lucide-react';
+import { Shield, HardDrive, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useSystemInfo } from '@/hooks/useSystemInfo';
 import { NeuralCore } from '@/features/mcp/components/NeuralCore'; 
@@ -72,15 +72,8 @@ export const OfflineTitlebar = () => {
             <div className="text-xs font-mono text-secondary-txt uppercase">
               Disk <span className="text-primary-txt ml-1 font-bold">{systemInfo ? Math.round(systemInfo.disk_usage) : '--'}%</span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 group">
-            <Cpu size={14} className="text-offline-core/60 group-hover:text-offline-core transition-colors" />
-            <div className="text-xs font-mono text-secondary-txt uppercase">
-              Temp <span className="text-primary-txt ml-1 font-bold">{systemInfo?.cpu_temperature ? `${systemInfo.cpu_temperature.toFixed(1)}°C` : 'N/A'}</span>
-            </div>
-          </div>
         </div>
+
 
         {/* NEURAL CORE: Integrated Visualizer */}
         <div className="h-10 w-20 flex items-center justify-center">

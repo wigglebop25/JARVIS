@@ -1,14 +1,33 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import JarvisIcon from '@/assets/jarvislogofinal.svg';
-import { Settings, ChevronFirst, ChevronLast, Terminal } from 'lucide-react';
+import { Settings, ChevronFirst, ChevronLast, Terminal, Plus, MessageSquare } from 'lucide-react';
+import { useSession } from '@/context/SessionContext';
 
 interface OfflineSidebarProps {
   onSettingsClick: () => void;
 }
 
+/** Format a timestamp into a relative label */
+const formatRelativeTime = (timestamp: number): string => {
+  const now = Date.now();
+  // Backend uses seconds, JS uses ms — normalize
+  const ts = timestamp < 1e12 ? timestamp * 1000 : timestamp;
+  const diff = Math.max(0, now - ts);
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days}d ago`;
+  return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
+
 export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
   const [isOpen, setIsOpen] = useState(true);
+  const { sessions, activeSessionId, createNewSession, switchSession } = useSession();
 
   return (
     <motion.aside 
@@ -65,8 +84,8 @@ export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
         </button>
       </div>
 
-      {/* NAVIGATION: Local Protocols Only */}
-      <nav className="flex-1 py-4 flex flex-col gap-2 px-2 overflow-hidden">
+      {/* NAVIGATION: Local Terminal Label */}
+      <div className="py-3 px-2">
         <div className="flex items-center h-10 rounded-md bg-offline-core/10 text-offline-core border border-offline-core/30 shadow-[inset_2px_0_0_var(--color-offline-core)] group cursor-default">
           <div className="w-12 shrink-0 flex items-center justify-center transition-transform group-hover:scale-110">
             <Terminal size={20} />
@@ -84,7 +103,104 @@ export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
             )}
           </AnimatePresence>
         </div>
-      </nav>
+      </div>
+
+      {/* SESSION LIST */}
+      <div className="flex-1 flex flex-col overflow-hidden px-2">
+        {/* New Session Button */}
+        <button
+          onClick={createNewSession}
+          className="flex items-center h-9 rounded-md transition-all duration-200 overflow-hidden group text-secondary-txt border border-dashed border-white/10 hover:border-offline-core/40 hover:bg-offline-core/5 hover:text-offline-core mb-2 shrink-0 cursor-pointer"
+          title={!isOpen ? "New Session" : ""}
+        >
+          <div className="w-12 shrink-0 flex items-center justify-center transition-transform group-hover:scale-110 group-hover:rotate-90">
+            <Plus size={16} />
+          </div>
+          <AnimatePresence mode="wait">
+            {isOpen && (
+              <motion.div 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, width: 0, transition: { duration: 0.1 } }}
+                className="font-mono text-[11px] whitespace-nowrap overflow-hidden uppercase tracking-wider"
+              >
+                New_Session
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </button>
+
+        {/* Section Header */}
+        <AnimatePresence mode="wait">
+          {isOpen && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.1 } }}
+              className="flex items-center gap-2 px-2 mb-2"
+            >
+              <span className="text-[9px] font-mono text-secondary-txt/40 uppercase tracking-[0.2em]">
+                Session_Log
+              </span>
+              <div className="flex-1 h-px bg-white/5" />
+              <span className="text-[9px] font-mono text-secondary-txt/30">
+                {sessions.length}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Scrollable Session List */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
+          <AnimatePresence mode="popLayout">
+            {sessions.map((session, index) => {
+              const isActive = session.id === activeSessionId;
+              const title = session.title || 'Untitled Session';
+              const displayTitle = title.length > 28 ? title.substring(0, 28) + '...' : title;
+
+              return (
+                <motion.button
+                  key={session.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ delay: index * 0.03 }}
+                  onClick={() => switchSession(session.id)}
+                  className={`w-full flex items-center rounded-md transition-all duration-200 overflow-hidden group cursor-pointer
+                    ${isActive 
+                      ? 'bg-offline-core/10 text-offline-core border border-offline-core/30 shadow-[inset_2px_0_0_var(--color-offline-core)]' 
+                      : 'text-secondary-txt/70 border border-transparent hover:bg-white/[0.03] hover:text-secondary-txt hover:border-white/5'
+                    }
+                    ${isOpen ? 'h-auto py-2' : 'h-10'}
+                  `}
+                  title={!isOpen ? title : ""}
+                >
+                  <div className={`w-12 shrink-0 flex items-center justify-center transition-colors ${isActive ? 'text-offline-core' : 'text-secondary-txt/40 group-hover:text-secondary-txt/60'}`}>
+                    <MessageSquare size={14} />
+                  </div>
+                  <AnimatePresence mode="wait">
+                    {isOpen && (
+                      <motion.div 
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, width: 0, transition: { duration: 0.1 } }}
+                        className="flex-1 min-w-0 pr-3"
+                      >
+                        <div className={`text-left text-[11px] font-mono truncate leading-tight ${isActive ? 'text-offline-core' : 'text-secondary-txt/80'}`}>
+                          {displayTitle}
+                        </div>
+                        <div className="text-left text-[9px] font-mono text-secondary-txt/30 mt-0.5">
+                          {formatRelativeTime(session.updated_at)}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      </div>
 
       {/* BOTTOM SECTION: Full-width Settings Button */}
       <div className="mt-auto flex flex-col pb-3 px-2 gap-2 border-t border-white/5 pt-3">

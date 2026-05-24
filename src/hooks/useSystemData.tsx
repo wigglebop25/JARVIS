@@ -59,48 +59,42 @@ export const useSystemData = () => {
 
   // --- 2. BOOT SEQUENCE & TELEMETRY SUBSCRIBER ---
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    const unlisten = onTelemetryReceived((info) => {
+      // 1. Update overall average statistics
+      setStats((prev) => ({
+        ...prev,
+        avgCpuUsage: Math.round(info.cpu_usage),
+        avgRamUsage: Math.round(info.ram_usage),
+      }));
 
-    const setupListener = async () => {
-      try {
-        unlisten = await onTelemetryReceived((info) => {
-          // 1. Update overall average statistics
-          setStats((prev) => ({
-            ...prev,
-            avgCpuUsage: Math.round(info.cpu_usage),
-            avgRamUsage: Math.round(info.ram_usage),
-          }));
-
-          // 2. Append to rolling chart histories
-          setHistory((prev) => {
-            const timeStr = new Date(info.time).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: false,
-            });
-
-            return {
-              cpu: [...prev.cpu.slice(1), { time: timeStr, value: Math.round(info.cpu_usage) }],
-              ram: [...prev.ram.slice(1), { time: timeStr, value: Math.round(info.ram_usage) }],
-              net: prev.net, // net traffic remains simulated/mocked for now
-            };
-          });
-
-          // 3. Mark loading complete on first telemetry packet
-          setIsLoading(false);
+      // 2. Append to rolling chart histories
+      setHistory((prev) => {
+        const timeStr = new Date(info.time).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
         });
-      } catch (err) {
-        console.error('Telemetry subscription error:', err);
-        setError('Failed to establish backend telemetry uplink');
-        setIsLoading(false);
-      }
-    };
 
-    setupListener();
+        return {
+          cpu: [...prev.cpu.slice(1), { time: timeStr, value: Math.round(info.cpu_usage) }],
+          ram: [...prev.ram.slice(1), { time: timeStr, value: Math.round(info.ram_usage) }],
+          net: prev.net, // net traffic not yet provided by backend
+        };
+      });
+
+      // 3. Mark loading complete on first telemetry packet
+      setIsLoading(false);
+    });
+
+    // If no telemetry arrives (non-Tauri env), stop loading after a timeout
+    const loadingTimeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 3000);
 
     return () => {
-      if (unlisten) unlisten();
+      clearTimeout(loadingTimeout);
+      unlisten();
     };
   }, []);
 
