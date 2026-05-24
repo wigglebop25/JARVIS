@@ -47,9 +47,31 @@ export const useSystemData = () => {
 
     // Bring back online after 3 seconds
     setTimeout(() => {
-      setDevices(prev => prev.map(d => d.id === deviceId ? { ...d, status: 'online' } : d));
+      setDevices(prev => prev.map(d => d.id === deviceId ? { ...d, status: 'online', cpu: 20, ram: 30 } : d));
       addEvent(`SYS_ONLINE: ${device.name} RECOVERY_COMPLETE`);
     }, 3000);
+  };
+
+  const toggleDeviceStatus = (deviceId: string) => {
+    const device = devices.find(d => d.id === deviceId);
+    if (!device) return;
+
+    const willBeOnline = device.status === 'offline';
+    const newStatus = willBeOnline ? 'online' : 'offline';
+    
+    addEvent(`NODE_STATUS_CHANGE: ${device.name} -> ${newStatus.toUpperCase()}`);
+    
+    setDevices(prev => prev.map(d => {
+      if (d.id === deviceId) {
+        return { 
+          ...d, 
+          status: newStatus,
+          cpu: willBeOnline ? Math.floor(Math.random() * 30) + 15 : 0, 
+          ram: willBeOnline ? Math.floor(Math.random() * 25) + 20 : 0 
+        };
+      }
+      return d;
+    }));
   };
 
   const addDevice = useCallback((device: any) => {
@@ -120,5 +142,5 @@ export const useSystemData = () => {
     return () => clearInterval(interval);
   }, [isLoading, error]);
 
-  return { stats, devices, tasks, events, history, isLoading, error, toggleTask, rebootDevice, addDevice };
+  return { stats, devices, tasks, events, history, isLoading, error, toggleTask, rebootDevice, toggleDeviceStatus, addDevice };
 };
