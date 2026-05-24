@@ -2,8 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
+import rehypeKatex from 'rehype-katex';
 import mermaid from 'mermaid';
+import 'katex/dist/katex.min.css';
 
 // Initialize Mermaid once
 try {
@@ -24,62 +27,8 @@ try {
   console.error('Failed to initialize mermaid', e);
 }
 
-// ─── Mathematical Unicode Symbol Formatter ──────────────────────────────────
-const formatMath = (latex: string): string => {
-  let text = latex;
-
-  const greek: Record<string, string> = {
-    '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ', '\\epsilon': 'ε',
-    '\\zeta': 'ζ', '\\eta': 'η', '\\theta': 'θ', '\\iota': 'ι', '\\kappa': 'κ',
-    '\\lambda': 'λ', '\\mu': 'μ', '\\nu': 'ν', '\\xi': 'ξ', '\\pi': 'π',
-    '\\rho': 'ρ', '\\sigma': 'σ', '\\tau': 'τ', '\\upsilon': 'υ', '\\phi': 'φ',
-    '\\chi': 'χ', '\\psi': 'ψ', '\\omega': 'ω',
-    '\\Gamma': 'Γ', '\\Delta': 'Δ', '\\Theta': 'Θ', '\\Lambda': 'Λ', '\\Xi': 'Ξ',
-    '\\Pi': 'Π', '\\Sigma': 'Σ', '\\Upsilon': 'Υ', '\\Phi': 'Φ', '\\Psi': 'Ψ',
-    '\\Omega': 'Ω'
-  };
-
-  const symbols: Record<string, string> = {
-    '\\infty': '∞', '\\approx': '≈', '\\neq': '≠', '\\leq': '≤', '\\geq': '≥',
-    '\\times': '×', '\\div': '÷', '\\pm': '±', '\\mp': '∓', '\\cdot': '·',
-    '\\rightarrow': '→', '\\leftarrow': '←', '\\leftrightarrow': '↔',
-    '\\Rightarrow': '⇒', '\\Leftarrow': '⇐', '\\Leftrightarrow': '⇔',
-    '\\partial': '∂', '\\nabla': '∇', '\\sum': '∑', '\\prod': '∏', '\\coprod': '∐',
-    '\\int': '∫', '\\iint': '∬', '\\iiint': '∭', '\\oint': '∮',
-    '\\forall': '∀', '\\exists': '∃', '\\nexists': '∄', '\\emptyset': '∅',
-    '\\in': '∈', '\\notin': '∉', '\\subset': '⊂', '\\supset': '⊃',
-    '\\subseteq': '⊆', '\\supseteq': '⊇', '\\cup': '∪', '\\cap': '∩',
-    '\\sqrt': '√'
-  };
-
-  for (const [key, val] of Object.entries(greek)) {
-    text = text.split(key).join(val);
-  }
-  for (const [key, val] of Object.entries(symbols)) {
-    text = text.split(key).join(val);
-  }
-
-  text = text.replace(/\\frac\s*{(.*?)}\s*{(.*?)}/g, '($1/$2)');
-
-  const subscripts: Record<string, string> = {
-    '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
-    'a': 'ₐ', 'e': 'ₑ', 'h': 'ₕ', 'i': 'ᵢ', 'j': 'ⱼ', 'k': 'ₖ', 'l': 'ₗ', 'm': 'ₘ', 'n': 'ₙ', 'o': 'ₒ',
-    'p': 'ₚ', 'r': 'ᵣ', 's': 'ₛ', 't': 'ₜ', 'u': 'ᵤ', 'v': 'ᵥ', 'x': 'ₓ'
-  };
-  
-  const superscripts: Record<string, string> = {
-    '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
-    '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', 'n': 'ⁿ', 'i': 'ⁱ'
-  };
-
-  text = text.replace(/_{(.*?)}/g, (_, p1) => p1.split('').map((char: string) => subscripts[char] || char).join(''));
-  text = text.replace(/_([0-9a-z])/g, (_, p1) => subscripts[p1] || p1);
-  text = text.replace(/\^{(.*?)}/g, (_, p1) => p1.split('').map((char: string) => superscripts[char] || char).join(''));
-  text = text.replace(/\^([0-9+\-n])/g, (_, p1) => superscripts[p1] || p1);
-  text = text.replace(/\\/g, '');
-
-  return text;
-};
+// Cache for rendered Mermaid SVGs to prevent flicker on remount / scroll
+const mermaidCache = new Map<string, string>();
 
 // ─── Code Block Renderer with Copy Action ──────────────────────────────────
 const CodeBlock = ({ content, lang, themeColorClass }: { content: string; lang?: string; themeColorClass: string }) => {
@@ -123,20 +72,31 @@ const CodeBlock = ({ content, lang, themeColorClass }: { content: string; lang?:
 const MermaidBlock = ({ chart }: { chart: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [svg, setSvg] = useState<string>('');
+  const cleanChart = chart.trim();
+  const [svg, setSvg] = useState<string>(() => mermaidCache.get(cleanChart) || '');
 
   useEffect(() => {
+    const cached = mermaidCache.get(cleanChart);
+    if (cached) {
+      setSvg(cached);
+      setError(null);
+      return;
+    }
+
+    // Reset svg state to empty if not cached, so we don't show the previous diagram
+    setSvg('');
+    setError(null);
+
     let active = true;
     const renderChart = async () => {
       if (!containerRef.current) return;
-      const cleanChart = chart.trim();
       if (!cleanChart) return;
       try {
-        setError(null);
         const id = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
         const { svg: renderedSvg } = await mermaid.render(id, cleanChart);
         
         if (active) {
+          mermaidCache.set(cleanChart, renderedSvg);
           setSvg(renderedSvg);
         }
       } catch (err: any) {
@@ -153,7 +113,7 @@ const MermaidBlock = ({ chart }: { chart: string }) => {
     return () => {
       active = false;
     };
-  }, [chart]);
+  }, [cleanChart]);
 
   if (error) {
     return (
@@ -193,22 +153,10 @@ export const MarkdownRenderer = ({ content, theme = 'offline' }: MarkdownRendere
 
   const themeColorClass = theme === 'offline' ? 'text-offline-core' : 'text-theme-accent';
 
-  // ─── Pre-process raw markdown text for math tags ───
+  // Pre-process LaTeX delimiters: replace \[ ... \] with $$ ... $$ and \( ... \) with $ ... $
   let processed = content;
-  
-  // Replace block math $$...$$ with a raw HTML wrapper
-  processed = processed.replace(/\$\$\s*([\s\S]*?)\s*\$\$/g, (_, equation) => {
-    return `<div class="math-block">${equation.trim()}</div>`;
-  });
-
-  // Replace inline math $...$ with a raw HTML wrapper
-  processed = processed.replace(/\$\s*([^\$\n]+?)\s*\$/g, (_, equation) => {
-    // Avoid breaking normal currency format (e.g. $20.00)
-    if (/^\d+(?:\.\d+)?$/.test(equation.trim())) {
-      return `$${equation}`;
-    }
-    return `<span class="math-inline">${equation.trim()}</span>`;
-  });
+  processed = processed.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, '$$\n$1\n$$');
+  processed = processed.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, '$$1$');
 
   // ─── Custom react-markdown element components ───
   const components = {
@@ -366,39 +314,13 @@ export const MarkdownRenderer = ({ content, theme = 'offline' }: MarkdownRendere
       <summary className="px-4 py-2 bg-white/5 font-mono text-[10px] font-bold text-primary-txt/90 uppercase tracking-wider cursor-pointer hover:bg-white/10 transition-colors select-none outline-none">
         {children}
       </summary>
-    ),
-
-    // Custom classes generated by math preprocessor
-    div: ({ className, children, ...props }: any) => {
-      if (className === 'math-block') {
-        const latex = String(children);
-        return (
-          <div className="my-4 p-4 rounded-lg bg-white/5 border border-white/10 flex justify-center items-center text-center font-serif italic text-md text-primary-txt select-all shadow-md">
-            <span className="tracking-wide text-[15px]">
-              {formatMath(latex)}
-            </span>
-          </div>
-        );
-      }
-      return <div className={className} {...props}>{children}</div>;
-    },
-    span: ({ className, children, ...props }: any) => {
-      if (className === 'math-inline') {
-        const latex = String(children);
-        return (
-          <span className="font-serif italic bg-white/5 px-1 rounded text-primary-txt/90 mx-0.5 tracking-wide text-[13px]">
-            {formatMath(latex)}
-          </span>
-        );
-      }
-      return <span className={className} {...props}>{children}</span>;
-    }
+    )
   };
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeRaw]}
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeRaw, rehypeKatex]}
       components={components}
     >
       {processed}

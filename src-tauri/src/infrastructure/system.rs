@@ -2,7 +2,7 @@ use crate::domain::errors::AppError;
 use crate::domain::system::{SystemInfo, SystemInfoService};
 use once_cell::sync::Lazy;
 use std::sync::RwLock;
-use sysinfo::{System, Disks};
+use sysinfo::{Disks, System};
 
 pub static LATEST_TELEMETRY: Lazy<RwLock<Option<SystemInfo>>> = Lazy::new(|| RwLock::new(None));
 
@@ -20,7 +20,7 @@ impl SystemInfoService for LocalSystemInfoService {
         let guard = LATEST_TELEMETRY
             .read()
             .map_err(|e| AppError::LockError(format!("Failed to acquire read lock: {}", e)))?;
-        
+
         guard.clone().ok_or_else(|| {
             AppError::NotAvailable("Telemetry worker has not initialized yet".into())
         })
@@ -58,7 +58,10 @@ pub fn start_telemetry_worker(app_handle: tauri::AppHandle) {
 
         // Disk usage calculation
         let disks = Disks::new_with_refreshed_list();
-        let disk_usage = if let Some(c_disk) = disks.iter().find(|d| d.mount_point() == std::path::Path::new("C:\\")) {
+        let disk_usage = if let Some(c_disk) = disks
+            .iter()
+            .find(|d| d.mount_point() == std::path::Path::new("C:\\"))
+        {
             let total = c_disk.total_space();
             if total > 0 {
                 ((total - c_disk.available_space()) as f32 / total as f32) * 100.0
@@ -80,7 +83,7 @@ pub fn start_telemetry_worker(app_handle: tauri::AppHandle) {
         };
 
         let time = chrono::Local::now().to_rfc3339();
-        
+
         // Refresh temperature sensors
         components.refresh(false);
 
@@ -89,7 +92,10 @@ pub fn start_telemetry_worker(app_handle: tauri::AppHandle) {
             .iter()
             .find(|c| {
                 let label = c.label().to_lowercase();
-                label.contains("cpu") || label.contains("core") || label.contains("package") || label.contains("temp")
+                label.contains("cpu")
+                    || label.contains("core")
+                    || label.contains("package")
+                    || label.contains("temp")
             })
             .and_then(|c| c.temperature());
 

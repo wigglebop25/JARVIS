@@ -65,4 +65,3 @@ pub async fn stop_voice_listener(state: State<'_, VoiceState>) -> Result<bool, A
 pub async fn get_voice_status(state: State<'_, VoiceState>) -> Result<bool, AppError> {
     Ok(get_status(&state))
 }
-

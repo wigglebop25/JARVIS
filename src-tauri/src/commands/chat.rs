@@ -61,7 +61,14 @@ pub async fn prompt(
     };
     let provider = config_clone.provider.to_string();
     let repo = SessionRepository::new(&db);
-    let response = send_prompt(&session_id, &input, attachments.as_deref(), &config_clone, &repo).await?;
+    let response = send_prompt(
+        &session_id,
+        &input,
+        attachments.as_deref(),
+        &config_clone,
+        &repo,
+    )
+    .await?;
 
     Ok(ChatResponse {
         message: response,
@@ -179,4 +186,3 @@ pub async fn delete_session(
     let repo = SessionRepository::new(&db);
     repo.delete_session(&session_id)
 }
-

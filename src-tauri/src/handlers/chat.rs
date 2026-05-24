@@ -64,7 +64,8 @@ pub fn set_provider(
     config: &std::sync::Mutex<AppConfig>,
     config_path: Option<&Path>,
 ) -> Result<(), AppError> {
-    let provider_enum = provider.parse::<Providers>()
+    let provider_enum = provider
+        .parse::<Providers>()
         .map_err(|e| AppError::SystemError(e))?;
 
     let mut config_guard = config
