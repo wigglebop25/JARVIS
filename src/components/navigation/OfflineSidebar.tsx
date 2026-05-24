@@ -23,10 +23,19 @@ export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
         className="h-14 flex items-center border-b border-white/5 relative px-2"
       >
         <div className="flex items-center gap-3 pointer-events-none">
-          <img 
+          <motion.img 
             src={JarvisIcon}
             alt="Jarvis Logo" 
-            className="ml-[1px] w-10 h-10 object-contain grayscale brightness-125" 
+            className="ml-[1px] w-10 h-10 object-contain grayscale brightness-125"
+            animate={{ 
+              scale: [1, 1.05, 1],
+              opacity: [0.8, 1, 0.8]
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
           />
           <AnimatePresence mode="wait">
             {isOpen && (

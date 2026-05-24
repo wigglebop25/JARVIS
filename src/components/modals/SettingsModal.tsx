@@ -490,10 +490,6 @@ const VoiceTab = ({ config, updateConfig }: TabProps) => {
     };
   }, [stream]);
 
-  // Map VAD sensitivity slider (0 to 1) directly to a gate percentage (0 to 100)
-  const thresholdPercentage = config.vad_threshold * 100;
-  const isSpeechDetected = isTesting && micLevel >= thresholdPercentage;
-
   return (
     <div className="space-y-7">
       <SectionHeader title="Audio_Voice_Settings" subtitle="Voice activation and transcription parameters" />
@@ -503,14 +499,14 @@ const VoiceTab = ({ config, updateConfig }: TabProps) => {
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <h4 className="text-xs font-sans font-bold text-primary-txt uppercase tracking-wider">Voice Test Console</h4>
-            <p className="text-[11px] font-sans text-tertiary-txt">Real hardware feed to safely test gate sensitivity thresholds.</p>
+            <p className="text-[11px] font-sans text-tertiary-txt">Real hardware feed to safely test microphone input level.</p>
           </div>
           <button
             type="button"
             onClick={toggleMicTest}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-sans font-bold text-xs uppercase tracking-wider transition-all duration-300 ${isTesting
-                ? 'bg-error-red/10 text-error-red border border-error-red/30 shadow-[0_0_15px_rgba(255,0,0,0.15)] animate-pulse'
-                : 'bg-[var(--theme-accent)]/10 text-[var(--theme-accent)] border border-[var(--theme-accent)]/30 hover:bg-[var(--theme-accent)]/20 shadow-[0_0_15px_rgba(var(--theme-accent-rgb),0.15)]'
+              ? 'bg-error-red/10 text-error-red border border-error-red/30 shadow-[0_0_15px_rgba(255,0,0,0.15)] animate-pulse'
+              : 'bg-[var(--theme-accent)]/10 text-[var(--theme-accent)] border border-[var(--theme-accent)]/30 hover:bg-[var(--theme-accent)]/20 shadow-[0_0_15px_rgba(var(--theme-accent-rgb),0.15)]'
               }`}
           >
             {isTesting ? <MicOff size={14} /> : <Mic size={14} />}
@@ -528,48 +524,28 @@ const VoiceTab = ({ config, updateConfig }: TabProps) => {
         <div className="space-y-2.5">
           <div className="flex justify-between text-[11px] font-sans text-secondary-txt/80">
             <span>HARDWARE INPUT LEVEL</span>
-            <span className={isSpeechDetected ? "text-success-green font-bold drop-shadow-[0_0_8px_#00FF66] transition-all" : "text-tertiary-txt transition-all"}>
-              {isSpeechDetected ? "SPEECH_DETECTED // ACTIVE" : isTesting ? "TESTING // AMBIENT" : "INACTIVE // CLICK START"}
+            <span className={isTesting ? "text-success-green font-bold drop-shadow-[0_0_8px_#00FF66] transition-all" : "text-tertiary-txt transition-all"}>
+              {isTesting ? "TESTING // ACTIVE" : "INACTIVE // CLICK START"}
             </span>
           </div>
 
           <div className="relative h-4 bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-inner">
             {/* Live Feed Bar */}
             <div
-              className={`h-full transition-all duration-75 ${isSpeechDetected
-                  ? 'bg-gradient-to-r from-success-green to-success-green/80 shadow-[0_0_10px_#00FF66]'
-                  : 'bg-[var(--theme-accent)]'
+              className={`h-full transition-all duration-75 ${isTesting
+                ? 'bg-gradient-to-r from-success-green to-success-green/80 shadow-[0_0_10px_#00FF66]'
+                : 'bg-[var(--theme-accent)]'
                 }`}
               style={{ width: `${isTesting ? micLevel : 0}%` }}
-            />
-            {/* Gate indicator line */}
-            <div
-              className="absolute top-0 bottom-0 w-0.5 bg-error-red/80 shadow-[0_0_5px_#FF3333] z-10 transition-all duration-100"
-              style={{ left: `${thresholdPercentage}%` }}
             />
           </div>
 
           <div className="flex justify-between text-[10px] font-mono text-tertiary-txt/60">
             <span>0%</span>
-            <span style={{ marginLeft: `${thresholdPercentage - 5}%` }} className="text-error-red font-semibold">GATE ({thresholdPercentage.toFixed(0)}%)</span>
             <span>100%</span>
           </div>
         </div>
       </div>
-
-      {/* VAD Threshold */}
-      <FieldGroup label="VAD Sensitivity" description="Speech detection threshold. Lower = more sensitive to quiet speech.">
-        <SliderInput
-          id="settings-vad-threshold"
-          value={config.vad_threshold}
-          onChange={(v) => updateConfig('vad_threshold', v)}
-          min={0}
-          max={1}
-          step={0.05}
-          labelLeft="Sensitive"
-          labelRight="Loud Speech"
-        />
-      </FieldGroup>
 
       {/* Silence Threshold RMS */}
       <FieldGroup label="Silence Energy Gate" description="RMS audio energy threshold for ambient noise filtering.">

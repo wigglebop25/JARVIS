@@ -3,6 +3,10 @@ import { motion } from 'framer-motion';
 import { MOCK_SYSTEM_UTILITIES } from '@/lib/mockData';
 import { NeuralCore } from '@/features/mcp/components/NeuralCore'; 
 
+const MotionShield = motion(Shield);
+
+const MotionLock = motion(Lock);
+
 export const OfflineTitlebar = () => {
   return (
     <header 
@@ -15,29 +19,43 @@ export const OfflineTitlebar = () => {
       {/* Left: Mode & Identity */}
       <div className="flex items-center gap-6 z-10">
         <div id="airgap-badge" className="flex items-center gap-2.5 px-3 ml-5 py-1 bg-offline-core/10 border border-offline-core/30 rounded-md shadow-[0_0_10px_rgba(var(--color-offline-core-rgb),0.1)]">
-          <Shield size={14} className="text-offline-core animate-pulse" />
+          <MotionShield 
+            size={14} 
+            className="text-offline-core"
+            animate={{ 
+              opacity: [0.4, 1, 0.4],
+              scale: [0.95, 1.05, 0.95]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
           <span className="font-mono text-xs text-offline-core tracking-[0.15em] font-bold">
             LOCAL_AIRGAP
           </span>
         </div>
 
-        {/* ── Animated Connection Wire ── */}
-        <div className="relative w-24 h-[2px] hidden md:block">
-          {/* Static trace line */}
-          <div className="absolute inset-0 bg-offline-core/10 rounded-full" />
-          {/* Animated energy pulse traveling along the wire */}
-          <motion.div
-            animate={{ x: ['-100%', '200%'] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: 'linear', repeatDelay: 1 }}
-            className="absolute inset-0 w-8 bg-gradient-to-r from-transparent via-offline-core/60 to-transparent rounded-full"
-          />
-          {/* Wire endpoint dots */}
-          <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-offline-core/40 border border-offline-core/60" />
-          <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-offline-core/40 border border-offline-core/60" />
-        </div>
 
-        <div className="font-mono text-xs text-secondary-txt opacity-50 uppercase tracking-wider hidden md:block">
-          <span className="text-primary-txt">JARVIS-SECURE-01</span>
+        <div id="secure-badge" className="flex items-center gap-2.5 px-3 py-1 bg-offline-core/10 border border-offline-core/30 rounded-md shadow-[0_0_10px_rgba(var(--color-offline-core-rgb),0.1)] hidden md:flex">
+          <MotionLock 
+            size={12} 
+            className="text-offline-core"
+            animate={{ 
+              opacity: [0.4, 1, 0.4],
+              scale: [0.95, 1.05, 0.95]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 0.5
+            }}
+          />
+          <span className="font-mono text-xs text-offline-core tracking-[0.15em] font-bold uppercase">
+            JARVIS_SECURE_01
+          </span>
         </div>
       </div>
       
