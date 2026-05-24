@@ -31,6 +31,7 @@ pub fn start_telemetry_worker(app_handle: tauri::AppHandle) {
     use tauri::Emitter;
 
     let mut sys = System::new();
+    let mut components = sysinfo::Components::new_with_refreshed_list();
     // Warm up CPU and memory measurement
     sys.refresh_cpu_all();
     sys.refresh_memory();
@@ -80,8 +81,17 @@ pub fn start_telemetry_worker(app_handle: tauri::AppHandle) {
 
         let time = chrono::Local::now().to_rfc3339();
         
-        // Returns None (null) on Windows if hardware sensors are unreadable without admin privileges
-        let cpu_temperature = None;
+        // Refresh temperature sensors
+        components.refresh(false);
+
+        // Find the first CPU or core sensor that exposes a temperature reading
+        let cpu_temperature = components
+            .iter()
+            .find(|c| {
+                let label = c.label().to_lowercase();
+                label.contains("cpu") || label.contains("core") || label.contains("package") || label.contains("temp")
+            })
+            .and_then(|c| c.temperature());
 
         let info = SystemInfo {
             time,
