@@ -33,7 +33,7 @@ const OnlineMessageItem = memo(({ msg }: OnlineMessageItemProps) => {
       <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border transition-all duration-300 ${
         msg.sender === 'user' 
           ? 'border-white/10 bg-white/5 text-secondary-txt/80' 
-          : 'border-theme-border bg-theme-surface-2 text-theme-accent shadow-[0_0_10px_rgba(var(--theme-accent-rgb),0.1)]'
+          : 'border-theme-border bg-theme-surface-2 text-theme-accent shadow-[0_0_10px_rgba(var(--theme-accent-rgb),0.15)]'
       }`}>
         {msg.sender === 'user' ? <User size={16} /> : <Cpu size={16} />}
       </div>
@@ -106,7 +106,7 @@ const OnlineMessageItem = memo(({ msg }: OnlineMessageItemProps) => {
   return prevProps.msg.id === nextProps.msg.id && prevProps.msg.text === nextProps.msg.text;
 });
 
-export const MCPMessageLog = ({ messages, isThinking = false }: MCPMessageLogProps) => {
+export const MCPMessageLog = ({ messages, isThinking = false, onClose }: MCPMessageLogProps) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -127,7 +127,7 @@ export const MCPMessageLog = ({ messages, isThinking = false }: MCPMessageLogPro
       style={{ maxHeight: '65vh' }}
     >
       {/* Header */}
-      <div className="px-4 py-2 border-b border-white/5 flex justify-between items-center bg-black/20 select-none">
+      <div className="px-4 py-2 border-b border-white/5 flex justify-between items-center bg-black/20 select-none shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-theme-accent animate-pulse" />
           <span className="text-[10px] font-mono text-theme-accent uppercase tracking-widest font-bold">Uplink_History</span>

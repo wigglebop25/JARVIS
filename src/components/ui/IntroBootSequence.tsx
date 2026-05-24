@@ -10,15 +10,7 @@ export const IntroBootSequence = ({ onComplete }: { onComplete: () => void }) =>
   const [videoSrc, setVideoSrc] = useState("");
 
   useEffect(() => {
-    const getPath = async () => {
-      try {
-        const { convertFileSrc } = await import('@tauri-apps/api/core');
-        setVideoSrc(convertFileSrc('videos/jarvis_intro.mp4'));
-      } catch (e) {
-        setVideoSrc('/videos/jarvis_intro.mp4');
-      }
-    };
-    getPath();
+    setVideoSrc('/videos/jarvis_intro.mp4');
   }, []);
 
   // NEW: Global Skip Logic
