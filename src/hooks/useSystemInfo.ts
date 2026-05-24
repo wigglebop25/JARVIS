@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getSystemInfo, onTelemetryReceived, SystemInfo, isTelemetryLive } from '@/services/system.service';
+import { getSystemInfo, onTelemetryReceived, SystemInfo } from '@/services/system.service';
 
 export const useSystemInfo = () => {
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);

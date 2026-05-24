@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import JarvisIcon from '@/assets/jarvislogofinal.svg';
-import { Settings, ChevronFirst, ChevronLast, Terminal, Plus, MessageSquare } from 'lucide-react';
+import { Settings, ChevronFirst, ChevronLast, Terminal, Plus, MessageSquare, Edit2, Trash2 } from 'lucide-react';
 import { useSession } from '@/context/SessionContext';
 
 interface OfflineSidebarProps {
@@ -27,7 +27,38 @@ const formatRelativeTime = (timestamp: number): string => {
 
 export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
   const [isOpen, setIsOpen] = useState(true);
-  const { sessions, activeSessionId, createNewSession, switchSession } = useSession();
+  const { sessions, activeSessionId, createNewSession, switchSession, renameSession, deleteSession } = useSession();
+
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+
+  const startEdit = (sessionId: string, currentTitle: string) => {
+    setEditingSessionId(sessionId);
+    setEditTitle(currentTitle);
+  };
+
+  const handleSave = async (sessionId: string) => {
+    if (!editTitle.trim()) {
+      setEditingSessionId(null);
+      return;
+    }
+    await renameSession(sessionId, editTitle.trim());
+    setEditingSessionId(null);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, sessionId: string) => {
+    if (e.key === 'Enter') {
+      handleSave(sessionId);
+    } else if (e.key === 'Escape') {
+      setEditingSessionId(null);
+    }
+  };
+
+  const handleDeleteClick = async (sessionId: string) => {
+    if (window.confirm("Are you sure you want to delete this session? All history will be lost.")) {
+      await deleteSession(sessionId);
+    }
+  };
 
   return (
     <motion.aside 
@@ -159,14 +190,28 @@ export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
               const displayTitle = title.length > 28 ? title.substring(0, 28) + '...' : title;
 
               return (
-                <motion.button
+                <motion.div
                   key={session.id}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
                   transition={{ delay: index * 0.03 }}
-                  onClick={() => switchSession(session.id)}
-                  className={`w-full flex items-center rounded-md transition-all duration-200 overflow-hidden group cursor-pointer
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    if (editingSessionId !== session.id) {
+                      switchSession(session.id);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      if (editingSessionId !== session.id) {
+                        switchSession(session.id);
+                      }
+                    }
+                  }}
+                  className={`w-full flex items-center rounded-md transition-all duration-200 overflow-hidden group cursor-pointer outline-none
                     ${isActive 
                       ? 'bg-offline-core/10 text-offline-core border border-offline-core/30 shadow-[inset_2px_0_0_var(--color-offline-core)]' 
                       : 'text-secondary-txt/70 border border-transparent hover:bg-white/[0.03] hover:text-secondary-txt hover:border-white/5'
@@ -184,18 +229,56 @@ export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, width: 0, transition: { duration: 0.1 } }}
-                        className="flex-1 min-w-0 pr-3"
+                        className="flex-1 min-w-0 pr-3 flex items-center justify-between"
                       >
-                        <div className={`text-left text-[11px] font-mono truncate leading-tight ${isActive ? 'text-offline-core' : 'text-secondary-txt/80'}`}>
-                          {displayTitle}
-                        </div>
-                        <div className="text-left text-[9px] font-mono text-secondary-txt/30 mt-0.5">
-                          {formatRelativeTime(session.updated_at)}
-                        </div>
+                        {editingSessionId === session.id ? (
+                          <div className="flex-1 flex items-center min-w-0 pr-1" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              className="w-full bg-white/5 border border-offline-core/50 rounded px-1.5 py-0.5 text-[11px] font-mono text-offline-core outline-none min-w-0"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              onKeyDown={(e) => handleKeyDown(e, session.id)}
+                              onBlur={() => handleSave(session.id)}
+                              autoFocus
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex-1 min-w-0 text-left pr-2">
+                              <div className={`text-[11px] font-mono truncate leading-tight ${isActive ? 'text-offline-core' : 'text-secondary-txt/80'}`}>
+                                {displayTitle}
+                              </div>
+                              <div className="text-[9px] font-mono text-secondary-txt/30 mt-0.5">
+                                {formatRelativeTime(session.updated_at)}
+                              </div>
+                            </div>
+                            
+                            {/* Actions on Hover */}
+                            <div 
+                              className="hidden group-hover:flex items-center gap-1 shrink-0" 
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                onClick={() => startEdit(session.id, title)}
+                                className="text-secondary-txt/40 hover:text-offline-core p-1 transition-colors rounded hover:bg-white/5 cursor-pointer"
+                                title="Rename Session"
+                              >
+                                <Edit2 size={11} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteClick(session.id)}
+                                className="text-secondary-txt/40 hover:text-red-500/80 p-1 transition-colors rounded hover:bg-white/5 cursor-pointer"
+                                title="Delete Session"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.button>
+                </motion.div>
               );
             })}
           </AnimatePresence>

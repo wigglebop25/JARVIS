@@ -72,6 +72,7 @@ export const OfflineTitlebar = () => {
             <div className="text-xs font-mono text-secondary-txt uppercase">
               Disk <span className="text-primary-txt ml-1 font-bold">{systemInfo ? Math.round(systemInfo.disk_usage) : '--'}%</span>
             </div>
+          </div>
         </div>
 
 

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { sendPrompt, createSession, listSessions, getHistory } from '@/services/chatService';
+import { sendPrompt, createSession, listSessions, getHistory, renameSession, deleteSession } from '@/services/chatService';
 import { Session, RigMessage } from '@/types/tauri';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -25,6 +25,8 @@ interface SessionContextType {
   createNewSession: () => Promise<void>;
   switchSession: (sessionId: string) => Promise<void>;
   sendMessage: (overrideText?: string) => Promise<void>;
+  renameSession: (sessionId: string, newTitle: string) => Promise<void>;
+  deleteSession: (sessionId: string) => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -37,12 +39,30 @@ const WELCOME_MESSAGE: Message = {
   text: 'SYSTEM_BOOT: Local MCP Node active. All neural links air-gapped. How can I assist?',
 };
 
+/** Parse rig::message::Message content structure dynamically */
+const parseContent = (content: any): string => {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((item: any) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object') {
+          return item.text || item.content || '';
+        }
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+};
+
 /** Map backend RigMessage[] → frontend Message[] */
 const mapHistory = (history: RigMessage[]): Message[] =>
   history.map((msg, i) => ({
     id: `hist-${i}-${Date.now()}`,
     sender: msg.role === 'user' ? 'user' : 'jarvis',
-    text: msg.content,
+    text: parseContent(msg.content),
   }));
 
 // ─── Provider ───────────────────────────────────────────────────────────────
@@ -146,6 +166,42 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     await loadSessionHistory(sessionId);
   }, [activeSessionId]);
 
+  // ── Rename session ──
+  const handleRenameSession = useCallback(async (sessionId: string, newTitle: string) => {
+    try {
+      await renameSession(sessionId, newTitle);
+      await refreshSessions();
+    } catch (err) {
+      console.error('[SessionContext] Failed to rename session:', err);
+    }
+  }, [refreshSessions]);
+
+  // ── Delete session ──
+  const handleDeleteSession = useCallback(async (sessionId: string) => {
+    try {
+      await deleteSession(sessionId);
+      
+      const updatedSessions = sessions.filter(s => s.id !== sessionId);
+      setSessions(updatedSessions);
+      
+      // If we deleted the active session, pick another or create a new one
+      if (activeSessionId === sessionId) {
+        if (updatedSessions.length > 0) {
+          const nextActive = updatedSessions[0];
+          setActiveSessionId(nextActive.id);
+          await loadSessionHistory(nextActive.id);
+        } else {
+          // No sessions left — create a new one
+          await createFirstSession();
+        }
+      } else {
+        await refreshSessions();
+      }
+    } catch (err) {
+      console.error('[SessionContext] Failed to delete session:', err);
+    }
+  }, [sessions, activeSessionId, refreshSessions]);
+
   // ── Send message ──
   const sendMessage = useCallback(async (overrideText?: string) => {
     const textToSend = (overrideText || input).trim();
@@ -170,13 +226,15 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       // use the text as the session title (truncated)
       const isFirstMessage = messages.filter(m => m.sender === 'user').length === 0;
       if (isFirstMessage) {
-        // We'll update the session title in the sessions list locally
         const truncatedTitle = textToSend.length > 40 
           ? textToSend.substring(0, 40) + '...' 
           : textToSend;
-        setSessions(prev => prev.map(s => 
-          s.id === sid ? { ...s, title: truncatedTitle, updated_at: Date.now() } : s
-        ));
+        
+        try {
+          await renameSession(sid, truncatedTitle);
+        } catch (err) {
+          console.error('[SessionContext] Failed to rename session on backend:', err);
+        }
       }
 
       const response = await sendPrompt(sid, textToSend);
@@ -195,7 +253,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     setMessages(prev => [...prev, botMsg]);
     setIsThinking(false);
 
-    // Refresh session list to update ordering
+    // Refresh session list to update ordering and titles
     await refreshSessions();
   }, [input, isThinking, activeSessionId, messages, refreshSessions]);
 
@@ -210,6 +268,8 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       createNewSession,
       switchSession,
       sendMessage,
+      renameSession: handleRenameSession,
+      deleteSession: handleDeleteSession,
     }}>
       {children}
     </SessionContext.Provider>
