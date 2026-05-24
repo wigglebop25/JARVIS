@@ -81,7 +81,7 @@ interface OfflineTelemetryHUDProps {
 }
 
 export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDProps) => {
-  const { systemInfo, isSimulated } = useSystemInfo();
+  const { systemInfo } = useSystemInfo();
   
   const viewportRef = useRef<HTMLDivElement>(null);
   const cpuDragControls = useDragControls();
@@ -115,11 +115,7 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
         <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-offline-core/80 font-bold">
           Hardware_Telemetry
         </h3>
-        {isSimulated ? (
-          <span className="ml-auto text-[10px] font-mono text-warning-orange/70 uppercase tracking-wider animate-pulse">
-            Simulated
-          </span>
-        ) : (
+        {systemInfo && (
           <span className="ml-auto text-[10px] font-mono text-success-green/80 uppercase tracking-wider">
             Live
           </span>
@@ -356,18 +352,16 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
 
               {/* ── Footer: Telemetry Mode State ── */}
               <div className="mt-auto pt-3 border-t border-white/5">
-                <div className={`flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.15em] ${
-                  isSimulated ? 'text-warning-orange/50' : 'text-success-green/60'
-                }`}>
+                <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.15em] text-success-green/60">
                   <div className={`w-1.5 h-1.5 rounded-full ${
-                    isSimulated ? 'bg-warning-orange/50 animate-pulse' : 'bg-success-green/60'
+                    systemInfo ? 'bg-success-green/60' : 'bg-secondary-txt/30 animate-pulse'
                   }`} />
-                  Telemetry_Mode: {isSimulated ? 'Simulated' : 'Live'}
+                  Telemetry_Mode: {systemInfo ? 'Live' : 'Awaiting'}
                 </div>
                 <p className="text-[10px] font-mono text-secondary-txt/50 mt-1 leading-relaxed">
-                  {isSimulated 
-                    ? 'Real hardware data will sync when jarvis-skills MCP module is deployed.' 
-                    : 'Streaming telemetry directly from Tauri backend.'}
+                  {systemInfo 
+                    ? 'Streaming telemetry directly from Tauri backend.' 
+                    : 'Waiting for backend telemetry stream...'}
                 </p>
               </div>
 

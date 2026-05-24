@@ -6,12 +6,14 @@ import { Outlet } from 'react-router-dom';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { useVoice } from '@/context/VoiceContext';
 import { NeuralCore } from '@/features/mcp/components/NeuralCore';
+import { SessionProvider } from '@/context/SessionContext';
 
 export const OfflineMainLayout = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { status } = useVoice();
 
   return (
+    <SessionProvider>
     <div className="flex h-screen w-screen bg-offline-bg text-primary-txt font-sans overflow-hidden relative">
       
       {/* --- TECHNICAL HARDWARE LAYER --- */}
@@ -74,5 +76,6 @@ export const OfflineMainLayout = () => {
         )}
       </AnimatePresence>
     </div>
+    </SessionProvider>
   );
 };
