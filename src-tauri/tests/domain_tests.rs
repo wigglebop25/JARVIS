@@ -20,7 +20,7 @@ fn test_config_load_save() {
     default_config.save_to(&config_path).unwrap();
 
     let loaded = AppConfig::load_from(&config_path).unwrap();
-    assert_eq!(default_config.vad_threshold, loaded.vad_threshold);
+    assert_eq!(default_config.silence_threshold_rms, loaded.silence_threshold_rms);
 
     // cleanup
     let _ = fs::remove_file(config_path);
@@ -78,7 +78,6 @@ fn test_config_missing_fields_defaults() {
     let loaded = AppConfig::load_from(&config_path).unwrap();
 
     assert_eq!(loaded.provider.to_string(), "openai");
-    assert_eq!(loaded.vad_threshold, 0.6);
     assert_eq!(loaded.transcription_model_path, "parakeet-tdt-0.6b-v3-int8");
     assert_eq!(loaded.database_name, "jarvis.db");
     assert_eq!(loaded.system_prompt, "You are JARVIS, a helpful AI assistant.");

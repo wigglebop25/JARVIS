@@ -6,11 +6,19 @@ use tauri::{AppHandle, Manager, State};
 #[tauri::command]
 pub async fn get_config(
     config: State<'_, std::sync::Mutex<AppConfig>>,
-) -> Result<AppConfig, AppError> {
+) -> Result<serde_json::Value, AppError> {
     let config_guard = config
         .lock()
         .map_err(|e| AppError::SystemError(format!("Failed to lock config: {}", e)))?;
-    Ok(config_guard.clone())
+    
+    let mut val = serde_json::to_value(&*config_guard)
+        .map_err(|e| AppError::SystemError(format!("Failed to serialize config: {}", e)))?;
+    
+    if let serde_json::Value::Object(ref mut map) = val {
+        map.insert("vad_threshold".to_string(), serde_json::Value::from(0.5));
+    }
+    
+    Ok(val)
 }
 
 /// Update the application configuration and save it to disk.

@@ -18,7 +18,6 @@ fn default_compaction_prompt() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub provider: Providers,
-    pub vad_threshold: f32,
     pub silence_threshold_rms: f32,
     pub silence_duration_ms: u64,
     pub api_key: String,
@@ -80,7 +79,6 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             provider: Providers::OpenAI,
-            vad_threshold: 0.5,
             silence_threshold_rms: 0.01,
             silence_duration_ms: 1000,
             api_key: "".to_string(),
