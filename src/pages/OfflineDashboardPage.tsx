@@ -1,73 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
-import { OfflineChatHistory, Message } from '@/features/mcp/components/offline/OfflineChatHistory';
+import { OfflineChatHistory } from '@/features/mcp/components/offline/OfflineChatHistory';
 import { OfflinePromptBar } from '@/features/mcp/components/offline/OfflinePromptBar';
 import { MCPLoading } from '@/features/mcp/components/MCPLoading';
 import { OfflineTelemetryHUD } from '@/features/mcp/components/offline/OfflineTelemetryHUD';
-import { sendPrompt, createSession } from '@/services/chatService';
+import { useSession } from '@/context/SessionContext';
+import { useState } from 'react';
 
 export const OfflineDashboardPage = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', sender: 'jarvis', text: 'SYSTEM_BOOT: Local MCP Node active. All neural links air-gapped. How can I assist, Seth?' }
-  ]);
-  const [input, setInput] = useState("");
-  const [isThinking, setIsThinking] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const { messages, isThinking, input, setInput, sendMessage } = useSession();
   const [isHudOpen, setIsHudOpen] = useState(true);
-  const sessionInitRef = useRef(false);
-
-  // Initialize a backend session on mount
-  useEffect(() => {
-    if (sessionInitRef.current) return;
-    sessionInitRef.current = true;
-
-    const initSession = async () => {
-      try {
-        const id = await createSession("Offline Session");
-        setSessionId(id);
-        console.log("[OfflineDashboard] Session created:", id);
-      } catch (err) {
-        console.warn("[OfflineDashboard] Backend session creation failed, chat will operate in degraded mode:", err);
-      }
-    };
-    initSession();
-  }, []);
-
-  const handleSend = async (overrideText?: string) => {
-    const textToSend = (overrideText || input).trim();
-    if (!textToSend || isThinking) return;
-
-    const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: textToSend };
-    setMessages(prev => [...prev, userMsg]);
-    setInput("");
-
-    setIsThinking(true);
-
-    let responseText: string;
-
-    try {
-      // Ensure we have a session
-      let sid = sessionId;
-      if (!sid) {
-        sid = await createSession("Offline Session");
-        setSessionId(sid);
-      }
-
-      const response = await sendPrompt(sid, textToSend);
-      responseText = response.message;
-    } catch (err) {
-      console.error("[OfflineDashboard] Backend prompt failed:", err);
-      responseText = `SYSTEM_ERROR: Backend unreachable — ${err}`;
-    }
-
-    const botMsg: Message = { 
-      id: (Date.now() + 1).toString(), 
-      sender: 'jarvis', 
-      text: responseText 
-    };
-
-    setMessages(prev => [...prev, botMsg]);
-    setIsThinking(false);
-  };
 
   return (
     <div className="h-full w-full flex bg-offline-bg relative overflow-hidden">
@@ -84,7 +24,7 @@ export const OfflineDashboardPage = () => {
           <OfflinePromptBar 
             input={input} 
             setInput={setInput} 
-            onSend={handleSend} 
+            onSend={sendMessage} 
             disabled={isThinking}
           />
         </div>

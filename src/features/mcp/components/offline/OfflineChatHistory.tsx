@@ -1,13 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, User, ChevronDown } from 'lucide-react';
-
-export interface Message {
-  id: string;
-  sender: 'user' | 'jarvis';
-  text: string;
-}
-
+import { Message } from '@/context/SessionContext';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 
 export const OfflineChatHistory = ({ messages }: { messages: Message[] }) => {
