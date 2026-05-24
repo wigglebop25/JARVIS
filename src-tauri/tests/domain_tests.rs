@@ -19,7 +19,10 @@ fn test_config_load_save() {
     default_config.save_to(&config_path).unwrap();
 
     let loaded = AppConfig::load_from(&config_path).unwrap();
-    assert_eq!(default_config.silence_threshold_rms, loaded.silence_threshold_rms);
+    assert_eq!(
+        default_config.silence_threshold_rms,
+        loaded.silence_threshold_rms
+    );
 
     // cleanup
     let _ = fs::remove_file(config_path);
@@ -35,7 +38,9 @@ fn test_database_manager() {
 
     let db = DatabaseManager::new(&db_path).unwrap();
     let repo = jarvis_lib::infrastructure::repository::SessionRepository::new(&db);
-    let session_id = repo.create_session(Some("Test Session".to_string())).unwrap();
+    let session_id = repo
+        .create_session(Some("Test Session".to_string()))
+        .unwrap();
 
     // The initial history should be empty
     let initial_history = repo.get_session_history(&session_id).unwrap();
@@ -52,7 +57,9 @@ fn test_database_manager() {
     // Verify row exists in session_history
     {
         let conn = db.conn.lock().unwrap();
-        let count: i32 = conn.query_row("SELECT COUNT(*) FROM session_history", [], |r| r.get(0)).unwrap();
+        let count: i32 = conn
+            .query_row("SELECT COUNT(*) FROM session_history", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(count, 1);
     }
 
@@ -72,7 +79,9 @@ fn test_database_manager() {
     // Verify history row is cascade deleted from session_history
     {
         let conn = db.conn.lock().unwrap();
-        let count: i32 = conn.query_row("SELECT COUNT(*) FROM session_history", [], |r| r.get(0)).unwrap();
+        let count: i32 = conn
+            .query_row("SELECT COUNT(*) FROM session_history", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(count, 0);
     }
 
@@ -106,8 +115,14 @@ fn test_config_missing_fields_defaults() {
     assert_eq!(loaded.provider.to_string(), "openai");
     assert_eq!(loaded.transcription_model_path, "parakeet-tdt-0.6b-v3-int8");
     assert_eq!(loaded.database_name, "jarvis.db");
-    assert_eq!(loaded.system_prompt, "You are JARVIS, a helpful AI assistant.");
-    assert_eq!(loaded.compaction_prompt, "Summarize this context briefly, capturing key points.");
+    assert_eq!(
+        loaded.system_prompt,
+        "You are JARVIS, a helpful AI assistant."
+    );
+    assert_eq!(
+        loaded.compaction_prompt,
+        "Summarize this context briefly, capturing key points."
+    );
 
     // Clean up
     let _ = fs::remove_file(config_path);
@@ -123,11 +138,8 @@ fn test_set_provider() {
     let mutex = std::sync::Mutex::new(config);
 
     // Call set_provider
-    jarvis_lib::handlers::chat::set_provider(
-        "gemini".to_string(),
-        &mutex,
-        Some(&config_path),
-    ).unwrap();
+    jarvis_lib::handlers::chat::set_provider("gemini".to_string(), &mutex, Some(&config_path))
+        .unwrap();
 
     // Verify state was updated
     let updated = mutex.lock().unwrap();

@@ -19,12 +19,7 @@ pub enum AppAgent {
             Agent<openai::responses_api::ResponsesCompletionModel>,
         >,
     ),
-    Gemini(
-        ContextManagedAgent<
-            gemini::CompletionModel,
-            Agent<gemini::CompletionModel>,
-        >,
-    ),
+    Gemini(ContextManagedAgent<gemini::CompletionModel, Agent<gemini::CompletionModel>>),
     Anthropic(
         ContextManagedAgent<
             anthropic::completion::CompletionModel,

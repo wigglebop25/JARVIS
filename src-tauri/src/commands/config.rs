@@ -25,14 +25,14 @@ pub async fn get_config(
     let config_guard = config
         .lock()
         .map_err(|e| AppError::SystemError(format!("Failed to lock config: {}", e)))?;
-    
+
     let mut val = serde_json::to_value(&*config_guard)
         .map_err(|e| AppError::SystemError(format!("Failed to serialize config: {}", e)))?;
-    
+
     if let serde_json::Value::Object(ref mut map) = val {
         map.insert("vad_threshold".to_string(), serde_json::Value::from(0.5));
     }
-    
+
     Ok(val)
 }
 
@@ -68,4 +68,3 @@ pub async fn update_config(
 
     Ok(())
 }
-

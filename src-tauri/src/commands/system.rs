@@ -29,4 +29,3 @@ pub async fn get_system_info(
     use crate::domain::system::SystemInfoService;
     system_service.get_system_info()
 }
-

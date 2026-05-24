@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::domain::errors::AppError;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SystemInfo {

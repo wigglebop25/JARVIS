@@ -35,7 +35,9 @@ impl<'a> SessionRepository<'a> {
             "INSERT INTO session_history (session_id, history_json) VALUES (?1, ?2)",
             params![id, "[]"],
         )
-        .map_err(|e| AppError::SystemError(format!("Failed to initialize session history: {}", e)))?;
+        .map_err(|e| {
+            AppError::SystemError(format!("Failed to initialize session history: {}", e))
+        })?;
 
         Ok(id)
     }
@@ -59,18 +61,23 @@ impl<'a> SessionRepository<'a> {
             .next()
             .map_err(|e| AppError::SystemError(format!("Failed to retrieve row: {}", e)))?
         {
-            let history_json: String = row
-                .get(0)
-                .map_err(|e| AppError::SystemError(format!("Failed to get history column: {}", e)))?;
-            let history: Vec<Message> = serde_json::from_str(&history_json)
-                .map_err(|e| AppError::SystemError(format!("Failed to deserialize history: {}", e)))?;
+            let history_json: String = row.get(0).map_err(|e| {
+                AppError::SystemError(format!("Failed to get history column: {}", e))
+            })?;
+            let history: Vec<Message> = serde_json::from_str(&history_json).map_err(|e| {
+                AppError::SystemError(format!("Failed to deserialize history: {}", e))
+            })?;
             Ok(history)
         } else {
             Ok(Vec::new())
         }
     }
 
-    pub fn save_session_history(&self, session_id: &str, history: &[Message]) -> Result<(), AppError> {
+    pub fn save_session_history(
+        &self,
+        session_id: &str,
+        history: &[Message],
+    ) -> Result<(), AppError> {
         let now = chrono::Utc::now().timestamp();
         let history_json = serde_json::to_string(history)
             .map_err(|e| AppError::SystemError(format!("Failed to serialize history: {}", e)))?;
@@ -91,7 +98,9 @@ impl<'a> SessionRepository<'a> {
             "UPDATE sessions SET updated_at = ?1 WHERE id = ?2",
             params![now, session_id],
         )
-        .map_err(|e| AppError::SystemError(format!("Failed to update session updated_at: {}", e)))?;
+        .map_err(|e| {
+            AppError::SystemError(format!("Failed to update session updated_at: {}", e))
+        })?;
 
         Ok(())
     }
@@ -104,7 +113,9 @@ impl<'a> SessionRepository<'a> {
             .map_err(|e| AppError::LockError(format!("Database lock error: {}", e)))?;
 
         let mut stmt = conn
-            .prepare("SELECT id, title, created_at, updated_at FROM sessions ORDER BY updated_at DESC")
+            .prepare(
+                "SELECT id, title, created_at, updated_at FROM sessions ORDER BY updated_at DESC",
+            )
             .map_err(|e| AppError::SystemError(format!("Failed to prepare query: {}", e)))?;
 
         let session_iter = stmt
@@ -120,9 +131,9 @@ impl<'a> SessionRepository<'a> {
 
         let mut sessions = Vec::new();
         for session in session_iter {
-            sessions.push(
-                session.map_err(|e| AppError::SystemError(format!("Failed to retrieve session: {}", e)))?,
-            );
+            sessions.push(session.map_err(|e| {
+                AppError::SystemError(format!("Failed to retrieve session: {}", e))
+            })?);
         }
         Ok(sessions)
     }
@@ -170,11 +181,8 @@ impl<'a> SessionRepository<'a> {
             .lock()
             .map_err(|e| AppError::LockError(format!("Database lock error: {}", e)))?;
 
-        conn.execute(
-            "DELETE FROM sessions WHERE id = ?1",
-            params![session_id],
-        )
-        .map_err(|e| AppError::SystemError(format!("Failed to delete session: {}", e)))?;
+        conn.execute("DELETE FROM sessions WHERE id = ?1", params![session_id])
+            .map_err(|e| AppError::SystemError(format!("Failed to delete session: {}", e)))?;
 
         Ok(())
     }
