@@ -14,6 +14,7 @@ try {
     startOnLoad: false,
     theme: 'dark',
     securityLevel: 'loose',
+    suppressErrorRendering: true,
     themeVariables: {
       primaryColor: '#22c55e',
       primaryTextColor: '#fff',
@@ -91,8 +92,8 @@ const MermaidBlock = ({ chart }: { chart: string }) => {
     const renderChart = async () => {
       if (!containerRef.current) return;
       if (!cleanChart) return;
+      const id = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
       try {
-        const id = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
         const { svg: renderedSvg } = await mermaid.render(id, cleanChart);
         
         if (active) {
@@ -101,6 +102,13 @@ const MermaidBlock = ({ chart }: { chart: string }) => {
         }
       } catch (err: any) {
         console.error('Mermaid render error:', err);
+        
+        // Clean up potential temporary elements left in DOM by mermaid on error
+        const tempElement = document.getElementById('d' + id);
+        if (tempElement) tempElement.remove();
+        const tempElement2 = document.getElementById(id);
+        if (tempElement2) tempElement2.remove();
+
         if (active) {
           const errorMsg = err?.message || String(err);
           setError(errorMsg.split('\n')[0] || 'Diagram syntax error');
