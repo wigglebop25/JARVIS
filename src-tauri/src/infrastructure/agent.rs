@@ -15,8 +15,8 @@ use tokio::sync::RwLock;
 pub enum AppAgent {
     OpenAi(
         ContextManagedAgent<
-            openai::responses_api::ResponsesCompletionModel,
-            Agent<openai::responses_api::ResponsesCompletionModel>,
+            openai::completion::CompletionModel,
+            Agent<openai::completion::CompletionModel>,
         >,
     ),
     Gemini(ContextManagedAgent<gemini::CompletionModel, Agent<gemini::CompletionModel>>),
@@ -59,6 +59,7 @@ struct ConfigSignature {
     chat_base_url: String,
     system_prompt: String,
     compaction_prompt: String,
+    compaction_threshold: usize,
     mcp_config_path: String,
 }
 
@@ -71,6 +72,7 @@ impl ConfigSignature {
             chat_base_url: config.chat_base_url.clone(),
             system_prompt: config.system_prompt.clone(),
             compaction_prompt: config.compaction_prompt.clone(),
+            compaction_threshold: config.compaction_threshold,
             mcp_config_path: config.mcp_config_path.clone(),
         }
     }
@@ -83,6 +85,7 @@ impl ConfigSignature {
             chat_base_url: String::new(),
             system_prompt: String::new(),
             compaction_prompt: String::new(),
+            compaction_threshold: 0,
             mcp_config_path: String::new(),
         }
     }
@@ -173,20 +176,21 @@ async fn build_agent(config: &AppConfig) -> Result<AppAgent, AppError> {
             }
             let client = builder
                 .build()
-                .map_err(|e| AppError::SystemError(e.to_string()))?;
+                .map_err(|e| AppError::SystemError(e.to_string()))?
+                .completions_api();
 
-            let compaction_model = client
-                .agent(&config.chat_model)
+            let model = client.completion_model(&config.chat_model);
+
+            let compaction_model = rig::agent::AgentBuilder::new(model.clone())
                 .preamble(&config.compaction_prompt)
                 .build();
 
-            let agent = client
-                .agent(&config.chat_model)
+            let agent = rig::agent::AgentBuilder::new(model)
                 .tools(tools)
                 .preamble(&config.system_prompt)
                 .default_max_turns(20)
                 .build()
-                .with_compaction(128_000, compaction_model);
+                .with_compaction(config.compaction_threshold, compaction_model);
 
             Ok(AppAgent::OpenAi(agent))
         }
@@ -210,7 +214,7 @@ async fn build_agent(config: &AppConfig) -> Result<AppAgent, AppError> {
                 .preamble(&config.system_prompt)
                 .default_max_turns(20)
                 .build()
-                .with_compaction(128_000, compaction_model);
+                .with_compaction(config.compaction_threshold, compaction_model);
 
             Ok(AppAgent::Gemini(agent))
         }
@@ -234,7 +238,7 @@ async fn build_agent(config: &AppConfig) -> Result<AppAgent, AppError> {
                 .preamble(&config.system_prompt)
                 .default_max_turns(20)
                 .build()
-                .with_compaction(128_000, compaction_model);
+                .with_compaction(config.compaction_threshold, compaction_model);
 
             Ok(AppAgent::Anthropic(agent))
         }

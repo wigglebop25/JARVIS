@@ -58,6 +58,9 @@ To maintain a high-yield, professional interface, you must strictly adhere to th
 fn default_compaction_prompt() -> String {
     "Summarize this context briefly, capturing key points.".to_string()
 }
+fn default_compaction_threshold() -> usize {
+    128000
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -76,6 +79,8 @@ pub struct AppConfig {
     pub system_prompt: String,
     #[serde(default = "default_compaction_prompt")]
     pub compaction_prompt: String,
+    #[serde(default = "default_compaction_threshold")]
+    pub compaction_threshold: usize,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -133,6 +138,7 @@ impl Default for AppConfig {
             database_name: default_database_name(),
             system_prompt: default_system_prompt(),
             compaction_prompt: default_compaction_prompt(),
+            compaction_threshold: default_compaction_threshold(),
         }
     }
 }
