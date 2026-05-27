@@ -1,6 +1,6 @@
 [package]
 name = "jarvis"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -32,7 +32,7 @@ serde_json = "1"
 tokio = { version = "1.51.0", features = ["full"] }
 anyhow = "1.0.102"
 crossbeam-channel = "0.5"
-jarvis-transcriber = { git = "https://github.com/PROJECT-JARV1S/jarvis-voice.git", version = "0.1.1" }
+jarvis-transcriber = { git = "https://github.com/PROJECT-JARV1S/jarvis-voice.git", version = "0.1.2" }
 thiserror = "2.0.18"
 agent_rs = { git = "https://github.com/skaarfundgandr/agent_rs.git", version = "0.1.0" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
