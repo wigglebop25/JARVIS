@@ -23,6 +23,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 
   system_prompt: 'You are JARVIS, a helpful AI assistant.',
   compaction_prompt: 'Summarize this context briefly, capturing key points.',
+  compaction_threshold: 128000,
   database_name: 'jarvis.db',
   mcp_config_path: 'mcp.json',
 };

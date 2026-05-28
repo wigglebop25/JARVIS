@@ -628,6 +628,60 @@ const SystemTab = ({ config, updateConfig }: TabProps) => {
         />
       </FieldGroup>
 
+      {/* Compaction Threshold */}
+      <FieldGroup label="Compaction Threshold" description="Context token count at which history is compacted and summarized (Min: 1,000, Max: 1,000,000).">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const current = config.compaction_threshold || 0;
+              const next = Math.max(1000, current - 5000);
+              updateConfig('compaction_threshold', next);
+            }}
+            className="flex items-center justify-center w-12 h-11 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors cursor-pointer text-secondary-txt hover:text-white font-mono font-bold text-sm shrink-0"
+          >
+            -
+          </button>
+          
+          <input
+            id="settings-compaction-threshold"
+            type="number"
+            min={1000}
+            max={1000000}
+            value={config.compaction_threshold || ''}
+            onChange={(e) => {
+              const val = parseInt(e.target.value, 10);
+              if (!isNaN(val)) {
+                updateConfig('compaction_threshold', Math.min(1000000, Math.max(0, val)));
+              } else if (e.target.value === '') {
+                updateConfig('compaction_threshold', 0);
+              }
+            }}
+            onBlur={() => {
+              if ((config.compaction_threshold || 0) < 1000) {
+                updateConfig('compaction_threshold', 1000);
+              }
+            }}
+            placeholder="128000"
+            className="flex-1 min-w-[80px] bg-white/[0.02] hover:bg-white/[0.04] border border-white/10 rounded-lg px-4 py-3 text-sm font-mono text-primary-txt text-center focus:outline-none focus:border-[var(--theme-accent)]/50 focus:ring-1 focus:ring-[var(--theme-accent)]/30 transition-all duration-300 shadow-inner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+
+          <button
+            type="button"
+            onClick={() => {
+              const current = config.compaction_threshold || 0;
+              const next = Math.min(1000000, current + 5000);
+              updateConfig('compaction_threshold', next);
+            }}
+            className="flex items-center justify-center w-12 h-11 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors cursor-pointer text-secondary-txt hover:text-white font-mono font-bold text-sm shrink-0"
+          >
+            +
+          </button>
+          
+          <span className="text-xs font-mono text-secondary-txt select-none w-14 text-left pl-1">tokens</span>
+        </div>
+      </FieldGroup>
+
       {/* Database Name */}
       <FieldGroup label="Database Name" description="SQLite database filename for history storage.">
         <input

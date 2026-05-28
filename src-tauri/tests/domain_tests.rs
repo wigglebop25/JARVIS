@@ -117,11 +117,15 @@ fn test_config_missing_fields_defaults() {
     assert_eq!(loaded.database_name, "jarvis.db");
     assert_eq!(
         loaded.system_prompt,
-        "You are JARVIS, a helpful AI assistant."
+        AppConfig::default().system_prompt
     );
     assert_eq!(
         loaded.compaction_prompt,
         "Summarize this context briefly, capturing key points."
+    );
+    assert_eq!(
+        loaded.compaction_threshold,
+        128000
     );
 
     // Clean up

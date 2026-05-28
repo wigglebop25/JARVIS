@@ -46,5 +46,6 @@ export interface AppConfig {
   database_name: string;
   system_prompt: string;
   compaction_prompt: string;
+  compaction_threshold: number;
   mcp_config_path: string;
 }
