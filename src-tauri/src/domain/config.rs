@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -61,6 +62,23 @@ fn default_compaction_prompt() -> String {
 fn default_compaction_threshold() -> usize {
     128000
 }
+fn default_sandbox_dir() -> String {
+    ".".to_string()
+}
+
+fn default_read_extensions() -> HashSet<String> {
+    ["txt", "md", "pdf", "json", "toml", "rs", "js", "ts", "tsx", "html", "css"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
+
+fn default_write_extensions() -> HashSet<String> {
+    ["txt", "md", "json", "toml", "rs", "js", "ts", "tsx", "html", "css"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -81,6 +99,12 @@ pub struct AppConfig {
     pub compaction_prompt: String,
     #[serde(default = "default_compaction_threshold")]
     pub compaction_threshold: usize,
+    #[serde(default = "default_sandbox_dir")]
+    pub sandbox_dir: String,
+    #[serde(default = "default_read_extensions")]
+    pub read_extensions: HashSet<String>,
+    #[serde(default = "default_write_extensions")]
+    pub write_extensions: HashSet<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -139,6 +163,9 @@ impl Default for AppConfig {
             system_prompt: default_system_prompt(),
             compaction_prompt: default_compaction_prompt(),
             compaction_threshold: default_compaction_threshold(),
+            sandbox_dir: default_sandbox_dir(),
+            read_extensions: default_read_extensions(),
+            write_extensions: default_write_extensions(),
         }
     }
 }

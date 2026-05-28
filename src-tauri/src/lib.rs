@@ -5,6 +5,7 @@ pub mod infrastructure;
 
 use crate::commands::chat::*;
 use crate::commands::config::*;
+use crate::commands::documents::*;
 use crate::commands::system::*;
 use crate::commands::voice::*;
 use tauri::Manager;
@@ -76,6 +77,12 @@ pub fn run() {
             get_voice_status,
             // System Telemetry
             get_system_info,
+            // Document Commands
+            read_document,
+            write_document,
+            list_directory,
+            glob_search,
+            grep_search,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,7 +1,10 @@
 use crate::domain::config::{AppConfig, Providers};
 use crate::domain::errors::AppError;
 use agent_rs_lib::agent::memory::context::{AgentContextExt, ContextManagedAgent};
-use agent_rs_lib::agent::tools::{ReadDocumentTool, WriteDocumentTool};
+use agent_rs_lib::agent::permission::PermissionPolicy;
+use agent_rs_lib::agent::tools::{
+    GlobSearchTool, GrepSearchTool, ListDirectoryTool, ReadDocumentTool, WriteDocumentTool,
+};
 use agent_rs_lib::config::McpConfig;
 use agent_rs_lib::mcp::client::McpClient;
 use once_cell::sync::Lazy;
@@ -139,9 +142,19 @@ impl AgentManager {
 }
 
 async fn build_agent(config: &AppConfig) -> Result<AppAgent, AppError> {
-    // Setup tools
-    let mut tools: Vec<Box<dyn ToolDyn>> =
-        vec![Box::new(ReadDocumentTool), Box::new(WriteDocumentTool)];
+    // Setup document tools with sandbox and extension config
+    let policy = PermissionPolicy::AllowAll;
+    let sandbox_root = &config.sandbox_dir;
+    let read_exts = config.read_extensions.clone();
+    let write_exts = config.write_extensions.clone();
+
+    let mut tools: Vec<Box<dyn ToolDyn>> = vec![
+        Box::new(ReadDocumentTool::new(sandbox_root, read_exts.clone(), policy.clone())),
+        Box::new(WriteDocumentTool::new(sandbox_root, write_exts, policy.clone())),
+        Box::new(ListDirectoryTool::new(sandbox_root, policy.clone())),
+        Box::new(GlobSearchTool::new(sandbox_root, policy.clone())),
+        Box::new(GrepSearchTool::new(sandbox_root, config.read_extensions.clone(), policy)),
+    ];
 
     if Path::new(&config.mcp_config_path).exists() {
         if let Ok(mcp_config) = McpConfig::from_path(&config.mcp_config_path) {
