@@ -1,7 +1,7 @@
-import { OfflineChatHistory } from '@/features/mcp/components/offline/OfflineChatHistory';
-import { OfflinePromptBar } from '@/features/mcp/components/offline/OfflinePromptBar';
-import { MCPLoading } from '@/features/mcp/components/MCPLoading';
-import { OfflineTelemetryHUD } from '@/features/mcp/components/offline/OfflineTelemetryHUD';
+import { OfflineChatHistory } from '@/features/offline/components/OfflineChatHistory';
+import { OfflinePromptBar } from '@/features/offline/components/OfflinePromptBar';
+import { OfflineLoading } from '@/features/offline/components/OfflineLoading';
+import { OfflineTelemetryHUD } from '@/features/offline/components/OfflineTelemetryHUD';
 import { useSession } from '@/context/SessionContext';
 import { useState } from 'react';
 
@@ -17,7 +17,7 @@ export const OfflineDashboardPage = () => {
         <OfflineChatHistory messages={messages} />
         
         <div className="max-w-5xl mx-auto w-full px-4">
-           {isThinking && <MCPLoading />}
+           {isThinking && <OfflineLoading />}
         </div>
 
         <div className="w-full z-20 bg-gradient-to-t from-offline-bg via-offline-bg/90 to-transparent">

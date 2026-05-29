@@ -318,7 +318,7 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled }: Props) =
                     ? "INITIALIZING_VOICE_MODEL..."
                     : disabled 
                     ? "JARVIS_IS_THINKING..." 
-                    : "Execute local MCP command... (type / for commands)"
+                    : "Execute local command... (type / for commands)"
                   }
                   className={`w-full bg-transparent border-none focus:outline-none text-[15px] font-sans resize-none h-14 pr-[150px] text-primary-txt placeholder:text-tertiary-txt transition-colors
                     ${disabled ? 'text-offline-core/40' : 'text-primary-txt'}

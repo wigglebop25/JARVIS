@@ -36,7 +36,7 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 const WELCOME_MESSAGE: Message = {
   id: 'welcome',
   sender: 'jarvis',
-  text: 'SYSTEM_BOOT: Local MCP Node active. All neural links air-gapped. How can I assist?',
+  text: 'SYSTEM_BOOT: Local Air-Gapped Node active. All neural links secure. How can I assist?',
 };
 
 /** Parse rig::message::Message content structure dynamically */

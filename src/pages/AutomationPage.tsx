@@ -54,7 +54,7 @@ export const AutomationPage = () => {
       {
         name: 'AI Agent Memory Consolidation',
         triggerType: 'command',
-        triggerValue: 'mcp_consolidate',
+        triggerValue: 'memory_consolidate',
         actionTarget: 'Vector Store',
         actionType: 'Optimize Indices',
         isActive: true,

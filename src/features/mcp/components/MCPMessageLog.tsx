@@ -2,7 +2,7 @@ import { useEffect, useRef, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, User, FileText, X } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
-import { MCPLoading } from '@/features/mcp/components/MCPLoading';
+import { OfflineLoading } from '@/features/offline/components/OfflineLoading';
 
 export interface Message {
   id: string;
@@ -178,7 +178,7 @@ export const MCPMessageLog = ({ messages, isThinking = false, onClose }: MCPMess
                       PROCESSING
                     </span>
                   </div>
-                  <MCPLoading theme="online" compact={true} />
+                  <OfflineLoading theme="online" compact={true} />
                 </div>
               </div>
             </motion.div>

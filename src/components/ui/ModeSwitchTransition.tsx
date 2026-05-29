@@ -40,7 +40,7 @@ export const ModeSwitchTransition = ({ target, onComplete }: Props) => {
     offline: [
       '[  0.05 ] SEVERING_TETHER: Closing cloud integration sockets...',
       '[  0.50 ] DEACTIVATING: External network bindings closed.',
-      '[  1.10 ] LOCAL_MCP: Locating local node loopbacks (127.0.0.1)...',
+      '[  1.10 ] LOCAL_LLM: Locating local node loopbacks (127.0.0.1)...',
       '[  1.60 ] VOICE_MODEL: Loading parakeet-tdt-0.6b-v3 parameters...',
       '[  2.15 ] AIRGAP_FIREWALL: Enforcing strict local sandbox rules.',
       '[  2.50 ] BOOT_SUCCESS: Secure Local Node active.'

@@ -197,7 +197,7 @@ const renderMessageText = (messageText: string) => {
 ```
 
 ### 3.2. Offline Prompt Bar
-Update [OfflinePromptBar.tsx](file:///E:/Documents/code/git/JARVIS/src/features/mcp/components/offline/OfflinePromptBar.tsx):
+Update [OfflinePromptBar.tsx](file:///E:/Documents/code/git/JARVIS/src/features/offline/components/OfflinePromptBar.tsx):
 
 #### Step 1: Imports
 Ensure `Paperclip`, `FileText`, and the Tauri `open` dialog module are imported:

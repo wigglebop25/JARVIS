@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-interface MCPLoadingProps {
+interface OfflineLoadingProps {
   theme?: 'online' | 'offline';
   compact?: boolean;
 }
 
-export const MCPLoading = ({ theme = 'offline', compact = false }: MCPLoadingProps) => {
+export const OfflineLoading = ({ theme = 'offline', compact = false }: OfflineLoadingProps) => {
   const text = "PROCESSING_COMMAND...";
   const [displayedText, setDisplayedText] = useState("");
   const [index, setIndex] = useState(0);
