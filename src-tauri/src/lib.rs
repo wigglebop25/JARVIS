@@ -11,6 +11,16 @@ use crate::commands::voice::*;
 use tauri::Manager;
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
+/// Application entry-point for the Tauri desktop app.
+///
+/// Sets up:
+/// - Configuration loaded from `config.toml` (with defaults for missing fields).
+/// - SQLite database for chat session persistence.
+/// - Voice transcription worker (gracefully degrades if the model is unavailable).
+/// - Background system telemetry worker that emits `"system-telemetry"` events.
+/// - All Tauri command handlers listed in `invoke_handler`.
+///
+/// Plugins: `tauri-plugin-media`, `tauri-plugin-opener`, `tauri-plugin-dialog`.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -31,7 +41,7 @@ pub fn run() {
             let silence_duration_ms = config.silence_duration_ms;
             let model_path = config.transcription_model_path.clone();
             let db_name = config.database_name.clone();
-            app.manage(std::sync::Mutex::new(config));
+            app.manage(tokio::sync::Mutex::new(config));
 
             // Load Database
             let data_dir = app.path().app_data_dir()?;
@@ -40,11 +50,17 @@ pub fn run() {
             app.manage(db);
 
             // Initialize the voice transcription worker
-            let voice_state = handlers::voice::init_voice_state(
+            let voice_state = match handlers::voice::init_voice_state(
                 silence_threshold_rms,
                 silence_duration_ms,
                 model_path,
-            )?;
+            ) {
+                Ok(vs) => domain::voice::ManagedVoiceState(Some(vs)),
+                Err(e) => {
+                    eprintln!("Warning: voice initialization failed: {e}");
+                    domain::voice::ManagedVoiceState(None)
+                }
+            };
             app.manage(voice_state);
 
             // Initialize the system telemetry service and spawn background worker thread

@@ -9,19 +9,24 @@ use crate::domain::system::SystemInfo;
 use crate::infrastructure::system::LocalSystemInfoService;
 use tauri::State;
 
-/// Retrieves detailed system information from the local device.
+/// Retrieves the latest system telemetry snapshot from the background worker.
 ///
-/// This queries various diagnostics (such as battery charge state, local clock, CPU
-/// temperature, and the system login username) using the injected `LocalSystemInfoService`.
+/// The data (CPU usage, RAM usage, disk usage, temperature) is collected every
+/// 3 seconds by a background thread and cached. This command reads the cache.
 ///
 /// # Arguments
 ///
-/// * `system_service` - The service responsible for reading system state.
+/// * `system_service` - The service responsible for reading cached system state, injected by Tauri.
 ///
 /// # Returns
 ///
-/// Returns a [`SystemInfo`] struct containing all retrieved statistics on success,
-/// or an [`AppError`] on failure.
+/// Returns a [`SystemInfo`] struct containing CPU, RAM, disk, temperature, and username
+/// on success, or an [`AppError`] on failure.
+///
+/// # Errors
+///
+/// Returns [`AppError::NotAvailable`] if the telemetry worker has not completed
+/// its first collection cycle yet.
 #[tauri::command]
 pub async fn get_system_info(
     system_service: State<'_, LocalSystemInfoService>,

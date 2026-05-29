@@ -1,21 +1,36 @@
 use crate::domain::errors::AppError;
 use crate::domain::system::{SystemInfo, SystemInfoService};
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use std::sync::RwLock;
 use sysinfo::{Disks, System};
 
-pub static LATEST_TELEMETRY: Lazy<RwLock<Option<SystemInfo>>> = Lazy::new(|| RwLock::new(None));
+/// Cached latest telemetry snapshot, written by the background worker and read by [`LocalSystemInfoService`].
+pub static LATEST_TELEMETRY: LazyLock<RwLock<Option<SystemInfo>>> =
+    LazyLock::new(|| RwLock::new(None));
 
+/// Default implementation of [`SystemInfoService`] that reads from [`LATEST_TELEMETRY`].
 #[derive(Clone, Default)]
 pub struct LocalSystemInfoService;
 
 impl LocalSystemInfoService {
+    /// Creates a new `LocalSystemInfoService`.
     pub fn new() -> Self {
         Self
     }
 }
 
 impl SystemInfoService for LocalSystemInfoService {
+    /// Reads the latest telemetry snapshot from [`LATEST_TELEMETRY`].
+    ///
+    /// # Returns
+    ///
+    /// Returns a [`SystemInfo`] snapshot on success, or an [`AppError`] on failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError::LockError`] if the telemetry read lock is poisoned.
+    /// Returns [`AppError::NotAvailable`] if the telemetry worker has not yet
+    /// completed its first collection cycle.
     fn get_system_info(&self) -> Result<SystemInfo, AppError> {
         let guard = LATEST_TELEMETRY
             .read()
@@ -27,6 +42,16 @@ impl SystemInfoService for LocalSystemInfoService {
     }
 }
 
+/// Spawns a background thread that collects system telemetry every 3 seconds.
+///
+/// The worker refreshes CPU, memory, and disk usage, then caches the result
+/// in [`LATEST_TELEMETRY`] and emits a `"system-telemetry"` Tauri event to the frontend.
+/// The thread runs indefinitely until the application exits.
+///
+/// # Arguments
+///
+/// * `app_handle` - The Tauri [`AppHandle`](tauri::AppHandle) used to emit
+///   `"system-telemetry"` events to the frontend.
 pub fn start_telemetry_worker(app_handle: tauri::AppHandle) {
     use tauri::Emitter;
 

@@ -5,33 +5,64 @@ use rig::message::Message;
 use rusqlite::params;
 use uuid::Uuid;
 
+/// Repository for chat session persistence against a SQLite database.
+///
+/// Wraps [`DatabaseManager`] and provides typed CRUD operations for
+/// sessions and their message history.
 pub struct SessionRepository<'a> {
     db: &'a DatabaseManager,
 }
 
 impl<'a> SessionRepository<'a> {
+    /// Creates a new repository bound to the given database manager.
+    ///
+    /// # Arguments
+    ///
+    /// * `db` - A reference to the [`DatabaseManager`] whose mutex-protected connection
+    ///   will be used for all operations.
     pub fn new(db: &'a DatabaseManager) -> Self {
         Self { db }
     }
 
+    /// Creates a new session with an auto-generated UUID and empty message history.
+    ///
+    /// Inserts rows in both `sessions` and `session_history` inside a single
+    /// SQLite transaction so a failure on either insert rolls back the other.
+    ///
+    /// # Arguments
+    ///
+    /// * `title` - An optional display name for the new session.
+    ///
+    /// # Returns
+    ///
+    /// Returns the newly generated session UUID string on success, or an [`AppError`] on failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError::LockError`] if the database mutex is poisoned; returns
+    /// [`AppError::SystemError`] on query or transaction failure.
     pub fn create_session(&self, title: Option<String>) -> Result<String, AppError> {
         let id = Uuid::new_v4().to_string();
         let now = chrono::Utc::now().timestamp();
 
-        let conn = self
+        let mut conn = self
             .db
             .conn
             .lock()
             .map_err(|e| AppError::LockError(format!("Database lock error: {}", e)))?;
 
-        conn.execute(
+        let tx = conn
+            .transaction()
+            .map_err(|e| AppError::SystemError(format!("Failed to start transaction: {}", e)))?;
+
+        tx.execute(
             "INSERT INTO sessions (id, title, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
             params![id, title, now, now],
         )
         .map_err(|e| AppError::SystemError(format!("Failed to insert session: {}", e)))?;
 
         // Initialize empty history
-        conn.execute(
+        tx.execute(
             "INSERT INTO session_history (session_id, history_json) VALUES (?1, ?2)",
             params![id, "[]"],
         )
@@ -39,9 +70,28 @@ impl<'a> SessionRepository<'a> {
             AppError::SystemError(format!("Failed to initialize session history: {}", e))
         })?;
 
+        tx.commit()
+            .map_err(|e| AppError::SystemError(format!("Failed to commit transaction: {}", e)))?;
+
         Ok(id)
     }
 
+    /// Returns the full message history for a session.
+    ///
+    /// # Arguments
+    ///
+    /// * `session_id` - The unique identifier of the session to load history for.
+    ///
+    /// # Returns
+    ///
+    /// Returns a vector of [`Message`]s (empty for a new session) on success,
+    /// or an [`AppError`] on failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError::SystemError("Session not found")`] when no row exists for `session_id`;
+    /// returns [`AppError::LockError`] on mutex poison; returns [`AppError::SystemError`]
+    /// on deserialization failures.
     pub fn get_session_history(&self, session_id: &str) -> Result<Vec<Message>, AppError> {
         let conn = self
             .db
@@ -69,10 +119,25 @@ impl<'a> SessionRepository<'a> {
             })?;
             Ok(history)
         } else {
-            Ok(Vec::new())
+            Err(AppError::SystemError("Session not found".to_string()))
         }
     }
 
+    /// Overwrites the session history and bumps `updated_at` in a single transaction.
+    ///
+    /// # Arguments
+    ///
+    /// * `session_id` - The unique identifier of the session to save history for.
+    /// * `history` - The full conversation history to persist (replaces the existing JSON).
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on success, or an [`AppError`] on failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError::SystemError("Session not found")`] if `session_id` does not exist;
+    /// returns [`AppError::LockError`] or [`AppError::SystemError`] on other failures.
     pub fn save_session_history(
         &self,
         session_id: &str,
@@ -82,19 +147,28 @@ impl<'a> SessionRepository<'a> {
         let history_json = serde_json::to_string(history)
             .map_err(|e| AppError::SystemError(format!("Failed to serialize history: {}", e)))?;
 
-        let conn = self
+        let mut conn = self
             .db
             .conn
             .lock()
             .map_err(|e| AppError::LockError(format!("Database lock error: {}", e)))?;
 
-        conn.execute(
-            "UPDATE session_history SET history_json = ?1 WHERE session_id = ?2",
-            params![history_json, session_id],
-        )
-        .map_err(|e| AppError::SystemError(format!("Failed to update history: {}", e)))?;
+        let tx = conn
+            .transaction()
+            .map_err(|e| AppError::SystemError(format!("Failed to start transaction: {}", e)))?;
 
-        conn.execute(
+        let rows = tx
+            .execute(
+                "UPDATE session_history SET history_json = ?1 WHERE session_id = ?2",
+                params![history_json, session_id],
+            )
+            .map_err(|e| AppError::SystemError(format!("Failed to update history: {}", e)))?;
+
+        if rows == 0 {
+            return Err(AppError::SystemError("Session not found".to_string()));
+        }
+
+        tx.execute(
             "UPDATE sessions SET updated_at = ?1 WHERE id = ?2",
             params![now, session_id],
         )
@@ -102,9 +176,22 @@ impl<'a> SessionRepository<'a> {
             AppError::SystemError(format!("Failed to update session updated_at: {}", e))
         })?;
 
+        tx.commit()
+            .map_err(|e| AppError::SystemError(format!("Failed to commit transaction: {}", e)))?;
+
         Ok(())
     }
 
+    /// Returns all sessions ordered by most-recently updated first.
+    ///
+    /// # Returns
+    ///
+    /// Returns a vector of [`Session`] structs on success, or an [`AppError`] on failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError::LockError`] if the database mutex is poisoned;
+    /// returns [`AppError::SystemError`] on query failures.
     pub fn get_all_sessions(&self) -> Result<Vec<Session>, AppError> {
         let conn = self
             .db
@@ -138,16 +225,20 @@ impl<'a> SessionRepository<'a> {
         Ok(sessions)
     }
 
-    /// Renames a chat session.
+    /// Renames a session and updates its `updated_at` timestamp.
     ///
     /// # Arguments
     ///
     /// * `session_id` - The unique identifier of the session to rename.
-    /// * `title` - The new title to assign to the session.
+    /// * `title` - The new display title for the session.
     ///
     /// # Returns
     ///
     /// Returns `Ok(())` on success, or an [`AppError`] on failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError::SystemError("Session not found")`] if `session_id` does not exist.
     pub fn rename_session(&self, session_id: &str, title: &str) -> Result<(), AppError> {
         let now = chrono::Utc::now().timestamp();
         let conn = self
@@ -156,16 +247,21 @@ impl<'a> SessionRepository<'a> {
             .lock()
             .map_err(|e| AppError::LockError(format!("Database lock error: {}", e)))?;
 
-        conn.execute(
-            "UPDATE sessions SET title = ?1, updated_at = ?2 WHERE id = ?3",
-            params![title, now, session_id],
-        )
-        .map_err(|e| AppError::SystemError(format!("Failed to rename session: {}", e)))?;
+        let rows = conn
+            .execute(
+                "UPDATE sessions SET title = ?1, updated_at = ?2 WHERE id = ?3",
+                params![title, now, session_id],
+            )
+            .map_err(|e| AppError::SystemError(format!("Failed to rename session: {}", e)))?;
+
+        if rows == 0 {
+            return Err(AppError::SystemError("Session not found".to_string()));
+        }
 
         Ok(())
     }
 
-    /// Deletes a chat session and all its associated history.
+    /// Deletes a session and all its associated history (cascaded via foreign key).
     ///
     /// # Arguments
     ///
@@ -174,6 +270,10 @@ impl<'a> SessionRepository<'a> {
     /// # Returns
     ///
     /// Returns `Ok(())` on success, or an [`AppError`] on failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError::SystemError("Session not found")`] if `session_id` does not exist.
     pub fn delete_session(&self, session_id: &str) -> Result<(), AppError> {
         let conn = self
             .db
@@ -181,8 +281,13 @@ impl<'a> SessionRepository<'a> {
             .lock()
             .map_err(|e| AppError::LockError(format!("Database lock error: {}", e)))?;
 
-        conn.execute("DELETE FROM sessions WHERE id = ?1", params![session_id])
+        let rows = conn
+            .execute("DELETE FROM sessions WHERE id = ?1", params![session_id])
             .map_err(|e| AppError::SystemError(format!("Failed to delete session: {}", e)))?;
+
+        if rows == 0 {
+            return Err(AppError::SystemError("Session not found".to_string()));
+        }
 
         Ok(())
     }

@@ -37,11 +37,9 @@ thiserror = "2.0.18"
 agent_rs = { git = "https://github.com/skaarfundgandr/agent_rs.git", version = "0.2.0" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 toml = "1.1.2"
-directories = "6.0.0"
 uuid = { version = "1.23.1", features = ["v4"] }
 chrono = "0.4.44"
 rig-core = "0.36.0"
-once_cell = "1.21.4"
 sysinfo = "0.39.2"
 tauri-plugin-media = "0.1.1"
 tauri-plugin-dialog = "2"

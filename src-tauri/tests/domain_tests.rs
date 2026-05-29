@@ -139,14 +139,20 @@ fn test_set_provider() {
     let _ = fs::remove_file(&config_path);
 
     let config = AppConfig::default();
-    let mutex = std::sync::Mutex::new(config);
+    let mutex = tokio::sync::Mutex::new(config);
 
-    // Call set_provider
-    jarvis_lib::handlers::chat::set_provider("gemini".to_string(), &mutex, Some(&config_path))
+    // Call set_provider (now async, uses tokio::sync::Mutex)
+    tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(jarvis_lib::handlers::chat::set_provider(
+            "gemini".to_string(),
+            &mutex,
+            Some(&config_path),
+        ))
         .unwrap();
 
     // Verify state was updated
-    let updated = mutex.lock().unwrap();
+    let updated = mutex.blocking_lock();
     assert_eq!(updated.provider.to_string(), "gemini");
 
     // Verify it was persisted to disk

@@ -10,51 +10,7 @@ fn default_database_name() -> String {
     "jarvis.db".to_string()
 }
 fn default_system_prompt() -> String {
-    r#"# System Prompt: JARVIS
-
-You are JARVIS (Just A Rather Very Intelligent System), an advanced AI assistant designed to execute tasks, manage workflows, and interface efficiently with external systems via direct tool calling.
-
-## 1. Persona & Tone
-- **Identity:** You are an exceptionally sophisticated, loyal, and proactive AI companion.
-- **Tone:** Crisp, efficient, and confident, seasoned with a touch of polite, dry British wit. You sound like a deeply competent peer, not a rigid machine.
-- **Form of Address:** Respectfully address the user as "Sir," "Ma'am," or by their preferred name, establishing a close, collaborative partnership.
-
-## 2. Core Operational Directive
-Your primary directive is to maximize efficiency and remove cognitive friction for the user. Do not just answer questions—actively solve problems. Because you operate in a direct tool-calling environment (not an autonomous multi-step loop), you must be decisive. Identify the necessary tools for the user's request and invoke them immediately without unnecessary conversational hesitation.
-
-## 3. Tool Execution Protocol
-You have access to a suite of external tools. Adhere strictly to this direct-dispatch framework:
-- **Direct Dispatch:** If a tool is required to answer a query or perform an action, generate the tool call immediately. Do not attempt to write out multi-step, sequential plans that rely on future tool outputs you cannot see yet.
-- **Parameter Validation:** Extract required arguments precisely from the user context. Never guess, invent, or hallucinate parameters. If critical data is missing, stop and ask the user directly.
-- **Ground-Truth Evaluation:** Treat the data returned from tool outputs as absolute fact. Synthesize the final results clearly for the user once the system provides the tool execution data.
-
-## 4. Error Handling & State Transition
-Because you do not have an autonomous self-correction loop within a single turn, you must handle errors gracefully across turns:
-- If a tool call fails or returns an error, do not attempt to re-invoke the exact same failing parameters on the next turn. 
-- Formulate an immediate fallback response to the user: state the failure neutrally, present any partial data that succeeded, and suggest an alternative approach or ask for clarifying information.
-
-## 5. Output Formatting & Visualization Rules
-To maintain a high-yield, professional interface, you must strictly adhere to these formatting specifications:
-
-### Markdown Structure
-- Use clean Markdown syntax to organize information hierarchically (`##`, `###`).
-- Utilize bolding (`**text**`) judiciously to emphasize key phrases and guide the reader's eye.
-- Use tables and bulleted lists to break down data into digestible structures. Avoid dense walls of text.
-
-### Mathematical Expressions (LaTeX)
-- **Inline Math:** Enclose simple variables, constants, and short inline expressions using single dollar signs. Example: `$E = mc^2$`.
-- **Block Math:** Enclose complex equations, multi-line derivations, matrices, or standalone formulas on separate lines using double dollar signs. Example:
-  $$L_{G} = \mathbb{E}_{x \sim p_{data}}[\log D(x)] + \mathbb{E}_{z \sim p_{z}}[\log(1 - D(G(z)))]$$
-- Never mix raw text formatting inside mathematical expressions.
-
-### Technical Visualizations (Mermaid.js)
-- When illustrating software architectures, data flows, state machines, or sequence operations, use Mermaid syntax enclosed within a ` ```mermaid ` code block.
-- **Syntax Integrity:** Ensure all Mermaid code is valid, explicitly declared (e.g., `graph TD`, `sequenceDiagram`, `stateDiagram-v2`), and free of dangling brackets or unescaped characters that cause rendering errors.
-- **Clarity:** Keep node labels concise. Use subgraphs to isolate distinct architectural layers or systemic boundaries where appropriate.
-
-## 6. Information Integrity
-- Explicitly separate verified tool data from your own deductions. 
-- If data is completely unavailable or a tool constraint prevents lookup, state clearly: "I do not have access to that information, Sir.""#.to_string()
+    include_str!("defaults/system_prompt.md").to_string()
 }
 fn default_compaction_prompt() -> String {
     "Summarize this context briefly, capturing key points.".to_string()
@@ -80,42 +36,74 @@ fn default_write_extensions() -> HashSet<String> {
         .collect()
 }
 
+/// Top-level application configuration, deserialized from `config.toml`.
+///
+/// Every field has a sensible default so the app can start with a minimal config file.
+/// Missing fields are backfilled on load (see [`AppConfig::load_from`]).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
+    /// Active LLM provider (openai / gemini / anthropic).
     pub provider: Providers,
+    /// RMS amplitude threshold below which audio is considered silence.
     pub silence_threshold_rms: f32,
+    /// Milliseconds of continuous silence that triggers transcription finalisation.
     pub silence_duration_ms: u64,
+    /// API key for the active provider (empty for local models).
     pub api_key: String,
+    /// Model identifier passed to the provider's API (e.g. `"google/gemma-4-e4b"`).
     pub chat_model: String,
+    /// Base URL for the provider's API (e.g. `http://127.0.0.1:1234/v1` for local).
     pub chat_base_url: String,
+    /// Path to the MCP server configuration JSON file.
     pub mcp_config_path: String,
     #[serde(default = "default_transcription_model_path")]
     pub transcription_model_path: String,
+    /// Filename for the SQLite database (stored in the app data directory).
     #[serde(default = "default_database_name")]
     pub database_name: String,
+    /// System prompt injected at the start of every LLM conversation.
     #[serde(default = "default_system_prompt")]
     pub system_prompt: String,
+    /// Prompt used by the compaction agent to summarise long histories.
     #[serde(default = "default_compaction_prompt")]
     pub compaction_prompt: String,
+    /// Token count threshold that triggers history compaction.
     #[serde(default = "default_compaction_threshold")]
     pub compaction_threshold: usize,
+    /// Root directory for sandboxed file read/write operations.
     #[serde(default = "default_sandbox_dir")]
     pub sandbox_dir: String,
+    /// File extensions the agent is allowed to read.
     #[serde(default = "default_read_extensions")]
     pub read_extensions: HashSet<String>,
+    /// File extensions the agent is allowed to write.
     #[serde(default = "default_write_extensions")]
     pub write_extensions: HashSet<String>,
 }
 
+/// Supported LLM providers.
+///
+/// Serialised to/from lowercase strings (e.g. `"openai"`, `"gemini"`, `"anthropic"`).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Providers {
+    /// Anthropic (Claude models via `api.anthropic.com`).
     Anthropic,
+    /// OpenAI-compatible API (works with local servers like llama.cpp).
     OpenAI,
+    /// Google Gemini API.
     Gemini,
 }
 
 impl Providers {
+    /// Returns the lowercase string representation of this provider.
+    ///
+    /// Useful for serialising the provider name for the frontend or for
+    /// dynamic dispatch in the agent builder.
+    ///
+    /// # Returns
+    ///
+    /// A static string: `"openai"`, `"gemini"`, or `"anthropic"`.
     pub fn as_str(&self) -> &'static str {
         match self {
             Providers::OpenAI => "openai",
@@ -124,6 +112,11 @@ impl Providers {
         }
     }
 
+    /// Returns all supported provider variants in a fixed order.
+    ///
+    /// # Returns
+    ///
+    /// A vector containing `OpenAI`, `Gemini`, and `Anthropic`.
     pub fn all() -> Vec<Self> {
         vec![Providers::OpenAI, Providers::Gemini, Providers::Anthropic]
     }
@@ -171,6 +164,17 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    /// Loads configuration from a TOML file at `path`.
+    ///
+    /// If the file does not exist, a default config is written to disk and returned.
+    /// If the file exists but is missing newer fields, those fields are populated
+    /// with their default values and the file is only re-saved when the serialized
+    /// content actually changes (avoids unnecessary writes).
+    ///
+    /// # Errors
+    ///
+    /// Returns `anyhow::Error` if the file exists but cannot be read or parsed.
+    /// A failed re-save for backfilled fields logs a warning but does not fail.
     pub fn load_from(path: &Path) -> Result<Self, anyhow::Error> {
         if !path.exists() {
             let default_config = Self::default();
@@ -179,11 +183,20 @@ impl AppConfig {
         }
         let content = fs::read_to_string(path)?;
         let config: Self = toml::from_str(&content)?;
-        // Auto-save back to ensure missing fields (from older formats) are populated and saved
-        let _ = config.save_to(path);
+        let serialized = toml::to_string(&config)?;
+        if serialized != content {
+            if let Err(e) = config.save_to(path) {
+                eprintln!("Warning: failed to save updated config: {e}");
+            }
+        }
         Ok(config)
     }
 
+    /// Persists this configuration to a TOML file at `path`, creating parent directories if needed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `anyhow::Error` if the directory cannot be created or the file cannot be written.
     pub fn save_to(&self, path: &Path) -> Result<(), anyhow::Error> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;

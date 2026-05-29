@@ -13,16 +13,24 @@ use crate::infrastructure::repository::SessionRepository;
 use rig::message::Message;
 use tauri::State;
 
-/// Creates a new chat session.
+/// Creates a new chat session with an optional human-readable title.
+///
+/// Delegates to [`SessionRepository::create_session`], which inserts the session
+/// and an empty history row inside a single SQLite transaction.
 ///
 /// # Arguments
 ///
-/// * `title` - An optional title to assign to the new session.
-/// * `db` - The database manager state.
+/// * `title` - An optional display name for the new session. Pass `None` for an untitled session.
+/// * `db` - The database manager state, injected by Tauri.
 ///
 /// # Returns
 ///
-/// Returns the unique session ID (UUID) on success, or an [`AppError`] on failure.
+/// Returns the unique session ID (UUID v4) on success, or an [`AppError`] on failure.
+///
+/// # Errors
+///
+/// Returns [`AppError::LockError`] if the database mutex is poisoned.
+/// Returns [`AppError::SystemError`] if the SQL INSERT or transaction commit fails.
 #[tauri::command]
 pub async fn create_session(
     title: Option<String>,
@@ -32,31 +40,44 @@ pub async fn create_session(
     repo.create_session(title)
 }
 
-/// Sends a prompt to the conversational AI agent within a specific session.
+/// Sends a user prompt to the LLM agent and returns the reply along with the active provider name.
+///
+/// 1. Creates a [`SessionRepository`] and loads the conversation history for `session_id`.
+/// 2. Clones the current config outside the lock so the mutex is held only briefly.
+/// 3. Forwards the `tauri::AppHandle` to the handler so that MCP connection errors during
+///    agent (re)building can be emitted as `"mcp-connection-error"` Tauri events.
+/// 4. Persists the updated history (with attachment metadata cleaned from the user message)
+///    back to the database.
 ///
 /// # Arguments
 ///
-/// * `session_id` - The unique identifier of the session.
-/// * `input` - The prompt or question text from the user.
-/// * `config` - The application configuration state.
-/// * `db` - The database manager state.
+/// * `session_id` - The unique identifier of the session to continue.
+/// * `input` - The user's prompt text.
+/// * `attachments` - Optional file paths to attach as document hints for the agent.
+/// * `config` - The application configuration state (locked briefly to clone).
+/// * `db` - The database manager state, injected by Tauri.
+/// * `app` - The Tauri application handle, used to emit MCP error events.
 ///
 /// # Returns
 ///
-/// Returns a [`ChatResponse`] containing the agent's message and the name of the
-/// active provider on success, or an [`AppError`] on failure.
+/// Returns a [`ChatResponse`] containing the agent's reply and the active provider name,
+/// or an [`AppError`] on failure.
+///
+/// # Errors
+///
+/// Propagates errors from history retrieval, agent chat, or history persistence.
+/// Returns [`AppError::SystemError`] if the agent cannot be built or the LLM call fails.
 #[tauri::command]
 pub async fn prompt(
     session_id: String,
     input: String,
     attachments: Option<Vec<String>>,
-    config: State<'_, std::sync::Mutex<AppConfig>>,
+    config: State<'_, tokio::sync::Mutex<AppConfig>>,
     db: State<'_, DatabaseManager>,
+    app: tauri::AppHandle,
 ) -> Result<ChatResponse, AppError> {
     let config_clone = {
-        let config_guard = config
-            .lock()
-            .map_err(|e| AppError::SystemError(format!("Failed to lock config: {}", e)))?;
+        let config_guard = config.lock().await;
         config_guard.clone()
     };
     let provider = config_clone.provider.to_string();
@@ -67,6 +88,7 @@ pub async fn prompt(
         attachments.as_deref(),
         &config_clone,
         &repo,
+        Some(&app),
     )
     .await?;
 
@@ -76,31 +98,43 @@ pub async fn prompt(
     })
 }
 
-/// Retrieves the list of available LLM providers supported by the application.
+/// Retrieves the list of LLM provider names supported by the application.
+///
+/// These values are safe to pass directly to [`set_chat_provider`].
 ///
 /// # Returns
 ///
-/// Returns a list of provider names on success, or an [`AppError`] on failure.
+/// Returns a vector of provider name strings (`"openai"`, `"gemini"`, `"anthropic"`)
+/// on success, or an [`AppError`] on failure.
 #[tauri::command]
 pub async fn get_chat_providers() -> Result<Vec<String>, AppError> {
     get_providers()
 }
 
-/// Sets the active LLM provider and saves the selection to the configuration file.
+/// Switches the active LLM provider and persists the change to the config file.
+///
+/// Accepts one of `"openai"`, `"gemini"`, or `"anthropic"`. The config mutex is
+/// released before the file write so concurrent reads are not blocked during I/O.
 ///
 /// # Arguments
 ///
-/// * `provider` - The name of the provider to activate (e.g. "gemini", "openai").
+/// * `provider` - The provider name to activate. Must match one of the names
+///   returned by [`get_chat_providers`].
 /// * `config` - The application configuration state.
-/// * `app` - The Tauri application handle.
+/// * `app` - The Tauri application handle, used to resolve the config directory path.
 ///
 /// # Returns
 ///
 /// Returns `Ok(())` on success, or an [`AppError`] on failure.
+///
+/// # Errors
+///
+/// Returns [`AppError::SystemError`] if the provider name is unknown or the config
+/// file cannot be written.
 #[tauri::command]
 pub async fn set_chat_provider(
     provider: String,
-    config: State<'_, std::sync::Mutex<AppConfig>>,
+    config: State<'_, tokio::sync::Mutex<AppConfig>>,
     app: tauri::AppHandle,
 ) -> Result<(), AppError> {
     use tauri::Manager;
@@ -109,18 +143,25 @@ pub async fn set_chat_provider(
         .app_config_dir()
         .ok()
         .map(|dir| dir.join("config.toml"));
-    set_provider(provider, &config, config_path.as_deref())
+    set_provider(provider, &config, config_path.as_deref()).await
 }
 
-/// Lists all historical and active chat sessions.
+/// Lists all chat sessions ordered by most-recently updated first.
+///
+/// Delegates to [`SessionRepository::get_all_sessions`].
 ///
 /// # Arguments
 ///
-/// * `db` - The database manager state.
+/// * `db` - The database manager state, injected by Tauri.
 ///
 /// # Returns
 ///
-/// Returns a list of [`Session`]s on success, or an [`AppError`] on failure.
+/// Returns a vector of [`Session`] structs on success, or an [`AppError`] on failure.
+///
+/// # Errors
+///
+/// Returns [`AppError::LockError`] if the database mutex is poisoned.
+/// Returns [`AppError::SystemError`] on SQL query failures.
 #[tauri::command]
 pub async fn list_sessions(db: State<'_, DatabaseManager>) -> Result<Vec<Session>, AppError> {
     let repo = SessionRepository::new(&db);
@@ -129,15 +170,23 @@ pub async fn list_sessions(db: State<'_, DatabaseManager>) -> Result<Vec<Session
 
 /// Retrieves the message history for a specific chat session.
 ///
+/// Delegates to [`SessionRepository::get_session_history`].
+///
 /// # Arguments
 ///
-/// * `session_id` - The unique identifier of the session.
-/// * `db` - The database manager state.
+/// * `session_id` - The unique identifier of the session to retrieve history for.
+/// * `db` - The database manager state, injected by Tauri.
 ///
 /// # Returns
 ///
-/// Returns a list of [`Message`]s representing the conversation history on success,
+/// Returns a vector of [`Message`]s representing the conversation history on success,
 /// or an [`AppError`] on failure.
+///
+/// # Errors
+///
+/// Returns [`AppError::SystemError("Session not found")`] if `session_id` does not exist.
+/// Returns [`AppError::LockError`] on mutex poison.
+/// Returns [`AppError::SystemError`] on JSON deserialisation failures.
 #[tauri::command]
 pub async fn get_history(
     session_id: String,
@@ -147,17 +196,24 @@ pub async fn get_history(
     repo.get_session_history(&session_id)
 }
 
-/// Renames a chat session.
+/// Renames a chat session and bumps its `updated_at` timestamp.
+///
+/// Delegates to [`SessionRepository::rename_session`].
 ///
 /// # Arguments
 ///
 /// * `session_id` - The unique identifier of the session to rename.
-/// * `title` - The new title to assign to the session.
-/// * `db` - The database manager state.
+/// * `title` - The new display title for the session.
+/// * `db` - The database manager state, injected by Tauri.
 ///
 /// # Returns
 ///
 /// Returns `Ok(())` on success, or an [`AppError`] on failure.
+///
+/// # Errors
+///
+/// Returns [`AppError::SystemError("Session not found")`] if `session_id` does not exist.
+/// Returns [`AppError::LockError`] on mutex poison.
 #[tauri::command]
 pub async fn rename_session(
     session_id: String,
@@ -168,16 +224,23 @@ pub async fn rename_session(
     repo.rename_session(&session_id, &title)
 }
 
-/// Deletes a chat session and all its associated history.
+/// Deletes a chat session and all its associated history (cascaded via foreign key).
+///
+/// Delegates to [`SessionRepository::delete_session`].
 ///
 /// # Arguments
 ///
 /// * `session_id` - The unique identifier of the session to delete.
-/// * `db` - The database manager state.
+/// * `db` - The database manager state, injected by Tauri.
 ///
 /// # Returns
 ///
 /// Returns `Ok(())` on success, or an [`AppError`] on failure.
+///
+/// # Errors
+///
+/// Returns [`AppError::SystemError("Session not found")`] if `session_id` does not exist.
+/// Returns [`AppError::LockError`] on mutex poison.
 #[tauri::command]
 pub async fn delete_session(
     session_id: String,

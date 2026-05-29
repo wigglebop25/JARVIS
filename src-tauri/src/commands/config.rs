@@ -8,63 +8,71 @@ use crate::domain::config::AppConfig;
 use crate::domain::errors::AppError;
 use tauri::{AppHandle, Manager, State};
 
-/// Retrieves the current application configuration, augmented with default system values.
+/// Returns the full application configuration as a JSON value.
+///
+/// The config is read from the `tokio::sync::Mutex` managed state (previously loaded
+/// from `config.toml` at startup). No synthetic fields (e.g. `vad_threshold`) are injected.
 ///
 /// # Arguments
 ///
-/// * `config` - The current configuration stored in the application's global state.
+/// * `config` - The application configuration state, injected by Tauri.
 ///
 /// # Returns
 ///
-/// Returns a serialized [`serde_json::Value`] representing the application's configuration,
-/// including fallback settings (like `vad_threshold`), or an [`AppError`] on failure.
+/// Returns a [`serde_json::Value`] representing the full `AppConfig` on success,
+/// or an [`AppError`] on failure.
+///
+/// # Errors
+///
+/// Returns [`AppError::SystemError`] if the config cannot be serialised to JSON.
 #[tauri::command]
 pub async fn get_config(
-    config: State<'_, std::sync::Mutex<AppConfig>>,
+    config: State<'_, tokio::sync::Mutex<AppConfig>>,
 ) -> Result<serde_json::Value, AppError> {
-    let config_guard = config
-        .lock()
-        .map_err(|e| AppError::SystemError(format!("Failed to lock config: {}", e)))?;
-
-    let mut val = serde_json::to_value(&*config_guard)
-        .map_err(|e| AppError::SystemError(format!("Failed to serialize config: {}", e)))?;
-
-    if let serde_json::Value::Object(ref mut map) = val {
-        map.insert("vad_threshold".to_string(), serde_json::Value::from(0.5));
-    }
-
-    Ok(val)
+    let config_guard = config.lock().await;
+    serde_json::to_value(&*config_guard)
+        .map_err(|e| AppError::SystemError(format!("Failed to serialize config: {}", e)))
 }
 
-/// Updates the application configuration in global state and persists it to disk.
+/// Overwrites the in-memory config and persists it to the config file on disk.
+///
+/// The lock is released before the file write so that concurrent reads are not
+/// blocked during I/O. Errors from directory resolution or file writing are
+/// propagated to the frontend (previously they were silently ignored).
 ///
 /// # Arguments
 ///
-/// * `new_config` - The new application configuration structure to apply.
-/// * `config` - The active configuration stored in the application's global state.
-/// * `app` - The Tauri application handle used to resolve system paths.
+/// * `new_config` - The complete [`AppConfig`] to apply.
+/// * `config` - The application configuration state, injected by Tauri.
+/// * `app` - The Tauri application handle, used to resolve the config directory path.
 ///
 /// # Returns
 ///
 /// Returns `Ok(())` on success, or an [`AppError`] on failure.
+///
+/// # Errors
+///
+/// Returns [`AppError::SystemError`] if the config directory cannot be resolved or
+/// the TOML file cannot be written.
 #[tauri::command]
 pub async fn update_config(
     new_config: AppConfig,
-    config: State<'_, std::sync::Mutex<AppConfig>>,
+    config: State<'_, tokio::sync::Mutex<AppConfig>>,
     app: AppHandle,
 ) -> Result<(), AppError> {
-    let mut config_guard = config
-        .lock()
-        .map_err(|e| AppError::SystemError(format!("Failed to lock config: {}", e)))?;
-
-    *config_guard = new_config;
-
-    if let Ok(config_dir) = app.path().app_config_dir() {
-        let config_path = config_dir.join("config.toml");
-        config_guard
-            .save_to(&config_path)
-            .map_err(|e| AppError::SystemError(format!("Failed to save config: {}", e)))?;
+    {
+        let mut config_guard = config.lock().await;
+        *config_guard = new_config.clone();
     }
+
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| AppError::SystemError(format!("Failed to resolve config directory: {}", e)))?;
+    let config_path = config_dir.join("config.toml");
+    new_config
+        .save_to(&config_path)
+        .map_err(|e| AppError::SystemError(format!("Failed to save config: {}", e)))?;
 
     Ok(())
 }
