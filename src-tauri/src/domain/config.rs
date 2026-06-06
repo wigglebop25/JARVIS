@@ -23,17 +23,21 @@ fn default_sandbox_dir() -> String {
 }
 
 fn default_read_extensions() -> HashSet<String> {
-    ["txt", "md", "pdf", "json", "toml", "rs", "js", "ts", "tsx", "html", "css"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect()
+    [
+        "txt", "md", "pdf", "json", "toml", "rs", "js", "ts", "tsx", "html", "css",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
 }
 
 fn default_write_extensions() -> HashSet<String> {
-    ["txt", "md", "json", "toml", "rs", "js", "ts", "tsx", "html", "css"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect()
+    [
+        "txt", "md", "json", "toml", "rs", "js", "ts", "tsx", "html", "css",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
 }
 
 /// Top-level application configuration, deserialized from `config.toml`.

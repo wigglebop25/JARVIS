@@ -7,12 +7,13 @@ use agent_rs_lib::agent::tools::{
 };
 use agent_rs_lib::config::McpConfig;
 use agent_rs_lib::mcp::client::McpClient;
-use std::sync::LazyLock;
+use agent_rs_lib::security::SandboxConfig;
 use rig::agent::Agent;
 use rig::prelude::*;
 use rig::providers::{anthropic, gemini, openai};
 use rig::tool::ToolDyn;
 use std::path::Path;
+use std::sync::LazyLock;
 use tokio::sync::RwLock;
 
 /// A type-erased LLM agent that wraps any supported provider.
@@ -102,7 +103,8 @@ impl ConfigSignature {
     fn from_config(config: &AppConfig) -> Self {
         let mut read_exts: Vec<&str> = config.read_extensions.iter().map(|s| s.as_str()).collect();
         read_exts.sort();
-        let mut write_exts: Vec<&str> = config.write_extensions.iter().map(|s| s.as_str()).collect();
+        let mut write_exts: Vec<&str> =
+            config.write_extensions.iter().map(|s| s.as_str()).collect();
         write_exts.sort();
 
         Self {
@@ -165,8 +167,8 @@ impl AgentManager {
     /// * `prompt` - The user's input text to send to the agent.
     /// * `history` - Mutable conversation history (prompt + response appended by the agent).
     /// * `config` - The current application configuration used to compute the rebuild signature.
-/// * `app` - Optional Tauri `AppHandle`; when provided, MCP connection errors during
-///   agent rebuild emit a `"mcp-connection-error"` Tauri event to the frontend.
+    /// * `app` - Optional Tauri `AppHandle`; when provided, MCP connection errors during
+    ///   agent rebuild emit a `"mcp-connection-error"` Tauri event to the frontend.
     ///
     /// # Returns
     ///
@@ -221,16 +223,29 @@ async fn build_agent(
 
     // Setup document tools with sandbox and extension config
     let policy = PermissionPolicy::AllowAll;
-    let sandbox_root = &config.sandbox_dir;
+    let sandbox = SandboxConfig::single(&config.sandbox_dir)
+        .map_err(|e| AppError::SystemError(e.to_string()))?;
     let read_exts = config.read_extensions.clone();
     let write_exts = config.write_extensions.clone();
 
     let mut tools: Vec<Box<dyn ToolDyn>> = vec![
-        Box::new(ReadDocumentTool::new(sandbox_root, read_exts.clone(), policy.clone())),
-        Box::new(WriteDocumentTool::new(sandbox_root, write_exts, policy.clone())),
-        Box::new(ListDirectoryTool::new(sandbox_root, policy.clone())),
-        Box::new(GlobSearchTool::new(sandbox_root, policy.clone())),
-        Box::new(GrepSearchTool::new(sandbox_root, config.read_extensions.clone(), policy)),
+        Box::new(ReadDocumentTool::new(
+            sandbox.clone(),
+            read_exts.clone(),
+            policy.clone(),
+        )),
+        Box::new(WriteDocumentTool::new(
+            sandbox.clone(),
+            write_exts,
+            policy.clone(),
+        )),
+        Box::new(ListDirectoryTool::new(sandbox.clone(), policy.clone())),
+        Box::new(GlobSearchTool::new(sandbox.clone(), policy.clone())),
+        Box::new(GrepSearchTool::new(
+            sandbox,
+            config.read_extensions.clone(),
+            policy,
+        )),
     ];
 
     if Path::new(&config.mcp_config_path).exists() {
@@ -246,13 +261,17 @@ async fn build_agent(
                         tools.extend(mcp_tools);
                     }
                     Err(e) => {
-                        let err_msg = format!("Failed to connect to MCP server '{}': {:?}", name, e);
+                        let err_msg =
+                            format!("Failed to connect to MCP server '{}': {:?}", name, e);
                         eprintln!("{}", err_msg);
                         if let Some(handle) = app {
-                            let _ = handle.emit("mcp-connection-error", serde_json::json!({
-                                "server": name,
-                                "error": e.to_string(),
-                            }));
+                            let _ = handle.emit(
+                                "mcp-connection-error",
+                                serde_json::json!({
+                                    "server": name,
+                                    "error": e.to_string(),
+                                }),
+                            );
                         }
                     }
                 }

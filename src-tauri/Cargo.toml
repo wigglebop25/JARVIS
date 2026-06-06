@@ -34,7 +34,7 @@ anyhow = "1.0.102"
 crossbeam-channel = "0.5"
 jarvis-transcriber = { git = "https://github.com/PROJECT-JARV1S/jarvis-voice.git", version = "0.2.0" }
 thiserror = "2.0.18"
-agent_rs = { git = "https://github.com/skaarfundgandr/agent_rs.git", version = "0.2.0" }
+agent_rs = { git = "https://github.com/skaarfundgandr/agent_rs.git", version = "0.2.1" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 toml = "1.1.2"
 uuid = { version = "1.23.1", features = ["v4"] }

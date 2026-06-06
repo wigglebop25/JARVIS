@@ -115,18 +115,12 @@ fn test_config_missing_fields_defaults() {
     assert_eq!(loaded.provider.to_string(), "openai");
     assert_eq!(loaded.transcription_model_path, "parakeet-tdt-0.6b-v3-int8");
     assert_eq!(loaded.database_name, "jarvis.db");
-    assert_eq!(
-        loaded.system_prompt,
-        AppConfig::default().system_prompt
-    );
+    assert_eq!(loaded.system_prompt, AppConfig::default().system_prompt);
     assert_eq!(
         loaded.compaction_prompt,
         "Summarize this context briefly, capturing key points."
     );
-    assert_eq!(
-        loaded.compaction_threshold,
-        128000
-    );
+    assert_eq!(loaded.compaction_threshold, 128000);
 
     // Clean up
     let _ = fs::remove_file(config_path);

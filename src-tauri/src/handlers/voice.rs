@@ -95,8 +95,14 @@ pub fn init_voice_state(
 /// the command channel is disconnected.
 pub fn start_transcription(state: &VoiceState, app: AppHandle) -> Result<(), AppError> {
     // Guard against double-start using compare_exchange to avoid race conditions
-    if state.is_transcribing.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
-        return Err(AppError::VoiceError("Voice listener already active".to_string()));
+    if state
+        .is_transcribing
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err(AppError::VoiceError(
+            "Voice listener already active".to_string(),
+        ));
     }
 
     // Reset the completion flag before starting
@@ -110,7 +116,9 @@ pub fn start_transcription(state: &VoiceState, app: AppHandle) -> Result<(), App
 
     if let Err(e) = state.command_tx.send(Command::Start) {
         state.is_transcribing.store(false, Ordering::SeqCst);
-        return Err(AppError::VoiceError(format!("Failed to send start command: {e}")));
+        return Err(AppError::VoiceError(format!(
+            "Failed to send start command: {e}"
+        )));
     }
 
     // Spawn a lightweight thread to wait for the transcription to finish
