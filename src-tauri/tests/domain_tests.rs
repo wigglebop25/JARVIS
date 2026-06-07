@@ -156,3 +156,24 @@ fn test_set_provider() {
     // Clean up
     let _ = fs::remove_file(config_path);
 }
+
+#[test]
+fn test_calculate_tokens() {
+    let prompt = "Explain quantum computing in one sentence.";
+    let response = "Quantum computing uses superposition and entanglement to perform complex computations.";
+    
+    let (prompt_tokens, response_tokens) = jarvis_lib::commands::chat::calculate_tokens(prompt, Some(response));
+    
+    // Check that we got positive token counts
+    assert!(prompt_tokens > 0);
+    assert!(response_tokens > 0);
+    
+    // A single word is typically 1 or 2 tokens, so counts should be reasonable
+    assert!(prompt_tokens < 20);
+    assert!(response_tokens < 30);
+    
+    // Check with None response
+    let (prompt_tokens_only, response_none_tokens) = jarvis_lib::commands::chat::calculate_tokens(prompt, None);
+    assert_eq!(prompt_tokens_only, prompt_tokens);
+    assert_eq!(response_none_tokens, 0);
+}

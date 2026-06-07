@@ -1,6 +1,7 @@
 use crate::domain::config::{AppConfig, Providers};
 use crate::domain::errors::AppError;
-use agent_rs_lib::agent::memory::context::{AgentContextExt, ContextManagedAgent};
+use agent_rs_lib::agent::agents::ContextManagedChatStream;
+use agent_rs_lib::agent::{AgentContextExt, ContextManagedAgent};
 use agent_rs_lib::agent::permission::PermissionPolicy;
 use agent_rs_lib::agent::tools::{
     GlobSearchTool, GrepSearchTool, ListDirectoryTool, ReadDocumentTool, WriteDocumentTool,
@@ -78,6 +79,83 @@ impl AppAgent {
                 .map_err(|e| AppError::SystemError(e.to_string())),
         }
     }
+
+    /// Streams a prompt to the underlying agent, calling the callback for each token chunk.
+    ///
+    /// # Arguments
+    ///
+    /// * `prompt` - The input text to send to the agent.
+    /// * `history` - The slice of conversation history.
+    /// * `channel` - Tauri IPC Channel to emit streaming tokens back to the frontend.
+    ///
+    /// # Returns
+    ///
+    /// Returns the updated conversation history on success, or an [`AppError`] on failure.
+    pub async fn stream_chat(
+        &self,
+        prompt: &str,
+        history: &[rig::message::Message],
+        channel: &tauri::ipc::Channel<String>,
+    ) -> Result<Vec<rig::message::Message>, AppError> {
+        match self {
+            AppAgent::OpenAi(agent) => {
+                let (stream, rx) = agent
+                    .stream_chat(prompt, history)
+                    .await
+                    .map_err(|e| AppError::SystemError(e.to_string()))?;
+                consume_chat_stream(stream, rx, channel).await
+            }
+            AppAgent::Gemini(agent) => {
+                let (stream, rx) = agent
+                    .stream_chat(prompt, history)
+                    .await
+                    .map_err(|e| AppError::SystemError(e.to_string()))?;
+                consume_chat_stream(stream, rx, channel).await
+            }
+            AppAgent::Anthropic(agent) => {
+                let (stream, rx) = agent
+                    .stream_chat(prompt, history)
+                    .await
+                    .map_err(|e| AppError::SystemError(e.to_string()))?;
+                consume_chat_stream(stream, rx, channel).await
+            }
+        }
+    }
+}
+
+async fn consume_chat_stream<S, R>(
+    mut stream: ContextManagedChatStream<S, R>,
+    rx: tokio::sync::oneshot::Receiver<Vec<rig::message::Message>>,
+    channel: &tauri::ipc::Channel<String>,
+) -> Result<Vec<rig::message::Message>, AppError>
+where
+    S: futures::Stream<Item = Result<rig::agent::MultiTurnStreamItem<R>, rig::agent::StreamingError>> + Unpin,
+    R: Unpin,
+{
+    use futures::StreamExt;
+    while let Some(chunk) = stream.next().await {
+        match chunk {
+            Ok(rig::agent::MultiTurnStreamItem::StreamAssistantItem(
+                rig::streaming::StreamedAssistantContent::Text(text),
+            )) => {
+                if channel.send(text.to_string()).is_err() {
+                    break;
+                }
+            }
+            Ok(rig::agent::MultiTurnStreamItem::FinalResponse(_)) => {}
+            Err(e) => {
+                return Err(AppError::SystemError(e.to_string()));
+            }
+            _ => {
+                tracing::debug!("Discarding unexpected stream item from agent_rs stream");
+            }
+        }
+    }
+
+    let updated_history = rx
+        .await
+        .map_err(|e| AppError::SystemError(e.to_string()))?;
+    Ok(updated_history)
 }
 
 /// Snapshot of config fields that determine whether the cached agent must be rebuilt.
@@ -212,6 +290,57 @@ impl AgentManager {
             .ok_or_else(|| AppError::SystemError("Agent failed to initialize".to_string()))?;
 
         agent.chat(prompt, history).await
+    }
+
+    /// Streams a prompt to the cached agent, rebuilding it first if config has changed.
+    ///
+    /// # Arguments
+    ///
+    /// * `prompt` - The user's input text to send to the agent.
+    /// * `history` - Slice of conversation history.
+    /// * `config` - The current application configuration used to compute the rebuild signature.
+    /// * `app` - Optional Tauri `AppHandle`; when provided, MCP connection errors during
+    ///   agent rebuild emit a `"mcp-connection-error"` Tauri event to the frontend.
+    /// * `channel` - Tauri IPC Channel to emit streaming tokens back to the frontend.
+    ///
+    /// # Returns
+    ///
+    /// Returns the updated conversation history on success, or an [`AppError`] on failure.
+    pub async fn send_stream_prompt(
+        &self,
+        prompt: &str,
+        history: &[rig::message::Message],
+        config: &AppConfig,
+        app: Option<&tauri::AppHandle>,
+        channel: &tauri::ipc::Channel<String>,
+    ) -> Result<Vec<rig::message::Message>, AppError> {
+        let signature = ConfigSignature::from_config(config);
+
+        let needs_rebuild = {
+            let sig_guard = self.signature.read().await;
+            let agent_guard = self.agent.read().await;
+            *sig_guard != signature || agent_guard.is_none()
+        };
+
+        if needs_rebuild {
+            // Build the agent first asynchronously (guards not held across build)
+            let new_agent = build_agent(config, app).await?;
+
+            let mut sig_guard = self.signature.write().await;
+            let mut agent_guard = self.agent.write().await;
+
+            if *sig_guard != signature || agent_guard.is_none() {
+                *agent_guard = Some(new_agent);
+                *sig_guard = signature;
+            }
+        }
+
+        let agent_guard = self.agent.read().await;
+        let agent = agent_guard
+            .as_ref()
+            .ok_or_else(|| AppError::SystemError("Agent failed to initialize".to_string()))?;
+
+        agent.stream_chat(prompt, history, channel).await
     }
 }
 

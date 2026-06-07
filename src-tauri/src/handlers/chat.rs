@@ -43,38 +43,78 @@ pub async fn send_prompt(
 ) -> Result<String, AppError> {
     let mut history = repo.get_session_history(session_id)?;
 
-    let mut prompt_with_attachments = String::new();
-    if let Some(paths) = attachments {
-        for path in paths {
-            prompt_with_attachments.push_str(&format!(
-                "[Attached Document: {}]\nUse the 'read_document' tool to read this file if you need to access its contents.\n\n",
-                path
-            ));
-        }
-    }
-    prompt_with_attachments.push_str(input);
+    let prompt_with_attachments = prepare_prompt_with_attachments(input, attachments);
 
     let response = AGENT_MANAGER
         .send_prompt(&prompt_with_attachments, &mut history, config, app)
         .await?;
 
-    let len = history.len();
-    if len >= 2 {
-        if let Some(user_msg) = history.get_mut(len - 2) {
-            let mut clean_text = String::new();
-            if let Some(paths) = attachments {
-                for path in paths {
-                    clean_text.push_str(&format!("[Attached: {}]\n", path));
-                }
-            }
-            clean_text.push_str(input);
-            *user_msg = rig::message::Message::user(&clean_text);
-        }
-    }
+    update_history_with_clean_user_message(&mut history, input, attachments);
 
     repo.save_session_history(session_id, &history)?;
 
     Ok(response)
+}
+
+/// Sends a user prompt to the cached LLM agent, streams the response, and persists the conversation.
+///
+/// 1. Loads session history from the database.
+/// 2. Prepends attachment paths as hints for the agent's `read_document` tool.
+/// 3. Calls `AGENT_MANAGER.send_stream_prompt`, which streams response tokens through the channel.
+/// 4. Cleans attachment metadata from the saved user message.
+/// 5. Persists the updated history back to the database.
+///
+/// # Arguments
+///
+/// * `session_id` - The unique identifier of the session to continue.
+/// * `input` - The user's raw prompt text.
+/// * `attachments` - Optional file paths to prepend as document hints for the agent.
+/// * `config` - The current application configuration.
+/// * `repo` - A [`SessionRepository`] bound to the database.
+/// * `app` - Optional Tauri `AppHandle`.
+/// * `channel` - Tauri IPC Channel to emit streaming tokens back to the frontend.
+///
+/// # Returns
+///
+/// Returns the assistant's final response text on success, or an [`AppError`] on failure.
+pub async fn send_stream_prompt(
+    session_id: &str,
+    input: &str,
+    attachments: Option<&[String]>,
+    config: &AppConfig,
+    repo: &SessionRepository<'_>,
+    app: Option<&tauri::AppHandle>,
+    channel: tauri::ipc::Channel<String>,
+) -> Result<String, AppError> {
+    let history = repo.get_session_history(session_id)?;
+
+    let prompt_with_attachments = prepare_prompt_with_attachments(input, attachments);
+
+    let mut updated_history = AGENT_MANAGER
+        .send_stream_prompt(&prompt_with_attachments, &history, config, app, &channel)
+        .await?;
+
+    let final_response =
+        if let Some(rig::message::Message::Assistant { content, .. }) = updated_history.last() {
+            if let Some(rig::message::AssistantContent::Text(text)) = content.iter().next() {
+                text.text.clone()
+            } else {
+                return Err(AppError::SystemError(
+                    "Streaming response completed but did not contain any text content".to_string(),
+                ));
+            }
+        } else {
+            return Err(AppError::SystemError(
+                "Streaming response completed but no assistant message was appended to history"
+                    .to_string(),
+            ));
+        };
+
+    update_history_with_clean_user_message(&mut updated_history, input, attachments);
+
+    repo.save_session_history(session_id, &updated_history)?;
+
+    Ok(final_response)
 }
 
 /// Returns the list of all supported LLM provider names as strings.
@@ -133,4 +173,38 @@ pub async fn set_provider(
     }
 
     Ok(())
+}
+
+fn prepare_prompt_with_attachments(input: &str, attachments: Option<&[String]>) -> String {
+    let mut prompt = String::new();
+    if let Some(paths) = attachments {
+        for path in paths {
+            prompt.push_str(&format!(
+                "[Attached Document: {}]\nUse the 'read_document' tool to read this file if you need to access its contents.\n\n",
+                path
+            ));
+        }
+    }
+    prompt.push_str(input);
+    prompt
+}
+
+fn update_history_with_clean_user_message(
+    history: &mut [rig::message::Message],
+    input: &str,
+    attachments: Option<&[String]>,
+) {
+    let len = history.len();
+    if len >= 2 {
+        if let Some(user_msg) = history.get_mut(len - 2) {
+            let mut clean_text = String::new();
+            if let Some(paths) = attachments {
+                for path in paths {
+                    clean_text.push_str(&format!("[Attached: {}]\n", path));
+                }
+            }
+            clean_text.push_str(input);
+            *user_msg = rig::message::Message::user(&clean_text);
+        }
+    }
 }

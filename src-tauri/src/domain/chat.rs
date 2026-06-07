@@ -31,3 +31,11 @@ pub struct Session {
     /// Unix timestamp of the most recent activity.
     pub updated_at: i64,
 }
+
+/// Response format for the `count_tokens` command.
+#[derive(serde::Serialize)]
+pub struct TokenCountResponse {
+    pub prompt_tokens: usize,
+    pub response_tokens: usize,
+    pub total_tokens: usize,
+}

@@ -4,12 +4,13 @@
 //! prompting the conversational agent, listing session history, and selecting/listing
 //! AI providers.
 
-use crate::domain::chat::{ChatResponse, Session};
+use crate::domain::chat::{ChatResponse, Session, TokenCountResponse};
 use crate::domain::config::AppConfig;
 use crate::domain::errors::AppError;
-use crate::handlers::chat::{get_providers, send_prompt, set_provider};
+use crate::handlers::chat::{get_providers, send_prompt, send_stream_prompt, set_provider};
 use crate::infrastructure::db::DatabaseManager;
 use crate::infrastructure::repository::SessionRepository;
+use agent_rs_lib::agent::memory::tokenizer;
 use rig::message::Message;
 use tauri::State;
 
@@ -95,6 +96,71 @@ pub async fn prompt(
     Ok(ChatResponse {
         message: response,
         provider,
+    })
+}
+
+/// Sends a user prompt to the LLM agent, streaming token chunks through the provided channel.
+///
+/// Returns the completed assistant reply on success, or an [`AppError`] on failure.
+#[tauri::command]
+pub async fn stream_prompt(
+    session_id: String,
+    input: String,
+    attachments: Option<Vec<String>>,
+    config: State<'_, tokio::sync::Mutex<AppConfig>>,
+    db: State<'_, DatabaseManager>,
+    app: tauri::AppHandle,
+    channel: tauri::ipc::Channel<String>,
+) -> Result<ChatResponse, AppError> {
+    let config_clone = {
+        let config_guard = config.lock().await;
+        config_guard.clone()
+    };
+    let provider = config_clone.provider.to_string();
+    let repo = SessionRepository::new(&db);
+    let response = send_stream_prompt(
+        &session_id,
+        &input,
+        attachments.as_deref(),
+        &config_clone,
+        &repo,
+        Some(&app),
+        channel,
+    )
+    .await?;
+
+    Ok(ChatResponse {
+        message: response,
+        provider,
+    })
+}
+
+/// Helper function to perform the actual token counting using `agent_rs_lib` BPE tokenizer.
+///
+/// > [!NOTE]
+/// > **Approximation Notice:** This function uses the `cl100k_base` BPE tokenizer vocabulary (accurate for OpenAI models).
+/// > For other providers like Anthropic and Gemini, this count serves as a close approximation.
+pub fn calculate_tokens(prompt: &str, response: Option<&str>) -> (usize, usize) {
+    let prompt_tokens = tokenizer::count_string_tokens(prompt);
+    let response_tokens = response.map_or(0, tokenizer::count_string_tokens);
+    (prompt_tokens, response_tokens)
+}
+
+/// Counts tokens in a prompt and an optional response using `agent_rs_lib` BPE tokenizer.
+///
+/// > [!NOTE]
+/// > **Approximation Notice:** This command uses the OpenAI `cl100k_base` tokenizer vocabulary.
+/// > Counts for Anthropic/Gemini responses are close approximations rather than precise provider billing values.
+#[tauri::command]
+pub fn count_tokens(
+    prompt: String,
+    response: Option<String>,
+) -> Result<TokenCountResponse, AppError> {
+    let (prompt_tokens, response_tokens) = calculate_tokens(&prompt, response.as_deref());
+    Ok(TokenCountResponse {
+        prompt_tokens,
+        response_tokens,
+        total_tokens: prompt_tokens + response_tokens,
     })
 }
 

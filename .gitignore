@@ -25,3 +25,7 @@ dist-ssr
 
 .env
 !.env.example
+**.md
+!AGENTS.md
+!README.md
+!docs/**/*.md

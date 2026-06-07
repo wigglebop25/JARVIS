@@ -80,6 +80,8 @@ pub fn run() {
             update_config,
             // Chat
             prompt,
+            stream_prompt,
+            count_tokens,
             create_session,
             list_sessions,
             get_history,
