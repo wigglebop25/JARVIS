@@ -3,6 +3,12 @@ export interface ChatResponse {
   provider: string;
 }
 
+export interface TokenCountResponse {
+  prompt_tokens: number;
+  response_tokens: number;
+  total_tokens: number;
+}
+
 export interface TranscriptPayload {
   transcript: string;
 }

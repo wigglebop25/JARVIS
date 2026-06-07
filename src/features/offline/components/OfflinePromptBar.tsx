@@ -4,6 +4,7 @@ import { Send, Shield, Loader2, Mic, X, Command, Paperclip, FileText } from 'luc
 import { useVoice } from '@/context/VoiceContext';
 import { useNeuralFrequency } from '@/hooks/useNeuralFrequency';
 import { open } from '@tauri-apps/plugin-dialog';
+import { countTokens } from '@/services/chatService';
 
 interface Props {
   input: string;
@@ -79,6 +80,9 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled }: Props) =
   const [selectedSlashIdx, setSelectedSlashIdx] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [promptTokens, setPromptTokens] = useState<number>(0);
+  const [isCalculatingTokens, setIsCalculatingTokens] = useState(false);
+  const tokenDebounceRef = useRef<any>(null);
 
   const handleAttachClick = async () => {
     try {
@@ -118,10 +122,49 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled }: Props) =
     setAttachedFiles(prev => prev.filter(f => f.id !== id));
   };
 
+  const handleInputChange = (val: string) => {
+    setInput(val);
+    if (!val.trim()) {
+      setPromptTokens(0);
+      setIsCalculatingTokens(false);
+      if (tokenDebounceRef.current) {
+        clearTimeout(tokenDebounceRef.current);
+      }
+      return;
+    }
+
+    setIsCalculatingTokens(true);
+
+    if (tokenDebounceRef.current) {
+      clearTimeout(tokenDebounceRef.current);
+    }
+
+    tokenDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await countTokens(val);
+        setPromptTokens(res.prompt_tokens);
+      } catch (err) {
+        console.error("Failed to count tokens:", err);
+      } finally {
+        setIsCalculatingTokens(false);
+      }
+    }, 300);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (tokenDebounceRef.current) {
+        clearTimeout(tokenDebounceRef.current);
+      }
+    };
+  }, []);
+
   const handleSendClick = () => {
     const paths = attachedFiles.map(f => f.path);
     onSend(undefined, paths);
     setAttachedFiles([]); // Clear attachments
+    setPromptTokens(0); // Clear tokens count
+    setIsCalculatingTokens(false);
   };
 
   // ── Voice transcript handling ──
@@ -310,7 +353,7 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled }: Props) =
                   value={input}
                   readOnly={disabled} 
                   onChange={(e) => {
-                    setInput(e.target.value);
+                    handleInputChange(e.target.value);
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder={
@@ -374,6 +417,11 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled }: Props) =
         <div className="mt-4 flex justify-between items-center px-2">
           <div className="flex items-center gap-2 text-[9px] font-mono text-offline-core opacity-40 uppercase tracking-widest">
             <Shield size={10} /> {disabled ? 'NEURAL_LOCK_ACTIVE' : 'Local_Node_Only'}
+            {input.trim() && (
+              <span className="text-offline-core/60 ml-3 border border-offline-core/20 px-1.5 py-0.5 rounded bg-offline-core/5 min-w-[120px] inline-flex items-center gap-1 justify-center">
+                PROMPT_TOKENS: {isCalculatingTokens ? <span className="animate-pulse">...</span> : promptTokens}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-4">
             {status === 'LISTENING' && (

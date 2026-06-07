@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { sendPrompt, createSession, listSessions, getHistory, renameSession, deleteSession } from '@/services/chatService';
+import { streamPrompt, countTokens, createSession, listSessions, getHistory, renameSession, deleteSession } from '@/services/chatService';
 import { Session, RigMessage } from '@/types/tauri';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -8,6 +8,7 @@ export interface Message {
   id: string;
   sender: 'user' | 'jarvis';
   text: string;
+  tokenCount?: number;
 }
 
 interface SessionContextType {
@@ -203,12 +204,33 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       displayMessage = `${attachmentsHeader}\n${textToSend}`;
     }
 
-    const userMsg: Message = { id: `user-${Date.now()}`, sender: 'user', text: displayMessage };
-    setMessages(prev => [...prev, userMsg]);
+    // Calculate initial user tokens
+    let userTokensCount = 0;
+    try {
+      const countRes = await countTokens(textToSend);
+      userTokensCount = countRes.prompt_tokens;
+    } catch (e) {
+      userTokensCount = Math.ceil(textToSend.length / 4);
+    }
+
+    const userId = `user-${Date.now()}`;
+    const assistantId = `bot-${Date.now()}`;
+
+    const userMsg: Message = { 
+      id: userId, 
+      sender: 'user', 
+      text: displayMessage,
+      tokenCount: userTokensCount
+    };
+    const botMsg: Message = {
+      id: assistantId,
+      sender: 'jarvis',
+      text: '',
+    };
+
+    setMessages(prev => [...prev, userMsg, botMsg]);
     setInput('');
     setIsThinking(true);
-
-    let responseText: string;
 
     try {
       // Ensure we have a session
@@ -236,21 +258,51 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
         }
       }
 
-      const response = await sendPrompt(sid, textToSend, attachments);
-      responseText = response.message;
+      let accumulatedText = '';
+      let hasTokens = false;
+
+      const response = await streamPrompt(sid, textToSend, attachments || null, (token) => {
+        if (!hasTokens) {
+          setIsThinking(false);
+          hasTokens = true;
+        }
+        accumulatedText += token;
+        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: accumulatedText } : m));
+      });
+
+      // Get exact final token counts
+      let finalPromptTokens = userTokensCount;
+      let responseTokens = 0;
+      try {
+        const tokenRes = await countTokens(textToSend, response.message);
+        finalPromptTokens = tokenRes.prompt_tokens;
+        responseTokens = tokenRes.response_tokens;
+      } catch (err) {
+        console.warn("Failed to get exact final token counts:", err);
+        responseTokens = Math.ceil(response.message.length / 4);
+      }
+
+      setMessages(prev => prev.map(m => {
+        if (m.id === userId) {
+          return { ...m, tokenCount: finalPromptTokens };
+        }
+        if (m.id === assistantId) {
+          return { ...m, text: response.message, tokenCount: responseTokens };
+        }
+        return m;
+      }));
+
     } catch (err) {
       console.error('[SessionContext] Prompt failed:', err);
-      responseText = `SYSTEM_ERROR: Backend unreachable — ${err}`;
+      setMessages(prev => prev.map(m => {
+        if (m.id === assistantId) {
+          return { ...m, text: `SYSTEM_ERROR: Backend unreachable — ${err}` };
+        }
+        return m;
+      }));
+    } finally {
+      setIsThinking(false);
     }
-
-    const botMsg: Message = {
-      id: `bot-${Date.now()}`,
-      sender: 'jarvis',
-      text: responseText,
-    };
-
-    setMessages(prev => [...prev, botMsg]);
-    setIsThinking(false);
 
     // Refresh session list to update ordering and titles
     await refreshSessions();

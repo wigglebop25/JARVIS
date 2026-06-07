@@ -4,7 +4,7 @@ import { ChevronLeft, Send, X, Mic, Terminal, Paperclip, FileText } from 'lucide
 import { MCPMessageLog, Message } from './MCPMessageLog'; 
 import { useVoice } from '@/context/VoiceContext'; 
 import { NeuralCore } from '@/features/mcp/components/NeuralCore';
-import { sendPrompt, createSession } from '@/services/chatService';
+import { streamPrompt, countTokens, createSession } from '@/services/chatService';
 import { useNeuralFrequency } from '@/hooks/useNeuralFrequency';
 import { open } from '@tauri-apps/plugin-dialog';
 
@@ -43,12 +43,15 @@ export const MCPTerminal = () => {
   const { status, transcript, startListening, stopListening, setStatus } = useVoice(); 
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
+  const [promptTokens, setPromptTokens] = useState<number>(0);
+  const [isCalculatingTokens, setIsCalculatingTokens] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [showHistory, setShowHistory] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   // Use a ref to track if we've already sent the current transcript
   const lastProcessedTranscript = useRef('');
+  const tokenDebounceRef = useRef<any>(null);
 
   interface AttachedFile {
     id: string;
@@ -96,6 +99,44 @@ export const MCPTerminal = () => {
     setAttachedFiles(prev => prev.filter(f => f.id !== id));
   };
 
+  // Live prompt token counting
+  const handleInputChange = (val: string) => {
+    setInput(val);
+    if (!val.trim()) {
+      setPromptTokens(0);
+      setIsCalculatingTokens(false);
+      if (tokenDebounceRef.current) {
+        clearTimeout(tokenDebounceRef.current);
+      }
+      return;
+    }
+
+    setIsCalculatingTokens(true);
+
+    if (tokenDebounceRef.current) {
+      clearTimeout(tokenDebounceRef.current);
+    }
+
+    tokenDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await countTokens(val);
+        setPromptTokens(res.prompt_tokens);
+      } catch (err) {
+        console.error("Failed to count tokens:", err);
+      } finally {
+        setIsCalculatingTokens(false);
+      }
+    }, 300);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (tokenDebounceRef.current) {
+        clearTimeout(tokenDebounceRef.current);
+      }
+    };
+  }, []);
+
   // 🏛️ 1. AUTOMATIC SEND LOGIC
   // When the transcriber finishes (transcript arrives), if we're open, send it.
   useEffect(() => {
@@ -124,11 +165,39 @@ export const MCPTerminal = () => {
       displayMessage = `${attachmentsHeader}\n${textToSend}`;
     }
     
+    // Calculate user prompt tokens
+    let userTokensCount = promptTokens;
+    if (userTokensCount === 0 && textToSend) {
+      try {
+        const countRes = await countTokens(textToSend);
+        userTokensCount = countRes.prompt_tokens;
+      } catch (e) {
+        userTokensCount = Math.ceil(textToSend.length / 4);
+      }
+    }
+
+    const userId = `user-${Date.now()}`;
+    const assistantId = `jarvis-${Date.now()}`;
+
     // Add User Message
-    setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'user', text: displayMessage }]);
+    const userMsg: Message = { 
+      id: userId, 
+      sender: 'user', 
+      text: displayMessage,
+      tokenCount: userTokensCount
+    };
+    // Prepare assistant message
+    const assistantMsg: Message = {
+      id: assistantId,
+      sender: 'jarvis',
+      text: ''
+    };
+
+    setMessages(prev => [...prev, userMsg, assistantMsg]);
     
     // RESET INPUT & ATTACHMENTS
     setInput('');
+    setPromptTokens(0);
     setAttachedFiles([]);
     setShowHistory(true);
     setStatus('THINKING');
@@ -143,19 +212,48 @@ export const MCPTerminal = () => {
         sid = await createSession(textToSend.substring(0, 30) || "Document Query");
         setSessionId(sid);
       }
-      const response = await sendPrompt(sid, textToSend, paths);
       
-      setMessages(prev => [...prev, { 
-        id: Date.now().toString(), 
-        sender: 'jarvis', 
-        text: response.message 
-      }]);
+      let accumulatedText = '';
+      let hasTokens = false;
+
+      const response = await streamPrompt(sid, textToSend, paths, (token) => {
+        if (!hasTokens) {
+          setStatus('IDLE');
+          hasTokens = true;
+        }
+        accumulatedText += token;
+        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: accumulatedText } : m));
+      });
+      
+      // Query final exact tokens
+      let finalPromptTokens = userTokensCount;
+      let responseTokens = 0;
+      try {
+        const tokenRes = await countTokens(textToSend, response.message);
+        finalPromptTokens = tokenRes.prompt_tokens;
+        responseTokens = tokenRes.response_tokens;
+      } catch (err) {
+        console.warn("Failed to get exact final token counts:", err);
+        responseTokens = Math.ceil(response.message.length / 4);
+      }
+
+      setMessages(prev => prev.map(m => {
+        if (m.id === userId) {
+          return { ...m, tokenCount: finalPromptTokens };
+        }
+        if (m.id === assistantId) {
+          return { ...m, text: response.message, tokenCount: responseTokens };
+        }
+        return m;
+      }));
     } catch (err) {
-      setMessages(prev => [...prev, { 
-        id: Date.now().toString(), 
-        sender: 'jarvis', 
-        text: `Error: ${err}` 
-      }]);
+      console.error("Streaming error:", err);
+      setMessages(prev => prev.map(m => {
+        if (m.id === assistantId) {
+          return { ...m, text: `Error: ${err}` };
+        }
+        return m;
+      }));
     } finally {
       setStatus('IDLE');
     }
@@ -263,7 +361,7 @@ export const MCPTerminal = () => {
                         <input
                           autoFocus
                           value={input}
-                          onChange={(e) => setInput(e.target.value)}
+                          onChange={(e) => handleInputChange(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               e.preventDefault();
@@ -341,6 +439,23 @@ export const MCPTerminal = () => {
                     </button>
                   </div>
                 </div>
+
+                {/* Technical Info under input bar */}
+                <div className="w-full flex justify-between px-6 mt-2 select-none pointer-events-none">
+                  <div className="text-[10px] font-mono text-secondary-txt/45 font-bold uppercase tracking-widest min-h-[15px]">
+                    {input.trim() ? (
+                      isCalculatingTokens ? (
+                        <span>[PROMPT_TOKENS: <span className="animate-pulse">...</span>]</span>
+                      ) : (
+                        `[PROMPT_TOKENS: ${promptTokens}]`
+                      )
+                    ) : ''}
+                  </div>
+                  <div className="text-[8px] font-mono text-white/10 uppercase tracking-[0.4em]">
+                    Neural_Bypass_v2.4
+                  </div>
+                </div>
+
               </div>
             </motion.div>
           ) : (

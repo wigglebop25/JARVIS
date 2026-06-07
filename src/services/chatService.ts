@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-import { ChatResponse, Session, RigMessage } from "@/types/tauri";
+import { invoke, Channel } from "@tauri-apps/api/core";
+import { ChatResponse, Session, RigMessage, TokenCountResponse } from "@/types/tauri";
 
 const isTauri = () => {
   return typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
@@ -84,6 +84,79 @@ export const sendPrompt = async (
     sessionId, 
     input, 
     attachments: attachments || null 
+  });
+};
+
+export const streamPrompt = async (
+  sessionId: string,
+  input: string,
+  attachments: string[] | null,
+  onToken: (token: string) => void
+): Promise<ChatResponse> => {
+  if (!isTauri()) {
+    console.info("[chatService] Non-Tauri environment, simulating stream.");
+    await new Promise(r => setTimeout(r, 400)); // Initial latency
+
+    let reply = `[SIMULATOR] Core uplink established. I have received your prompt.`;
+    if (attachments && attachments.length > 0) {
+      reply = `[SIMULATOR] I noticed the following attached file path(s): ${attachments.join(", ")}. In a Tauri environment, the agent will read these paths using its ReadDocumentTool.`;
+    }
+
+    const simulationThinking = `<think>\nAnalyzing prompt: "${input}"\nValidating secure uplink...\nDrafting simulated response.\n</think>\n`;
+    const fullReply = simulationThinking + reply;
+
+    const chunkSize = 6;
+    for (let i = 0; i < fullReply.length; i += chunkSize) {
+      const chunk = fullReply.slice(i, i + chunkSize);
+      onToken(chunk);
+      await new Promise(r => setTimeout(r, 15));
+    }
+
+    // Append to local history mock
+    const history = getMockHistory(sessionId);
+    const updatedHistory: RigMessage[] = [
+      ...history,
+      { role: "user", content: [{ type: "text", text: input }] as any },
+      { role: "assistant", content: [{ text: fullReply }] as any }
+    ];
+    saveMockHistory(sessionId, updatedHistory);
+
+    // Update session updated_at
+    const sessions = getMockSessions();
+    const updatedSessions = sessions.map(s => 
+      s.id === sessionId ? { ...s, updated_at: Date.now() } : s
+    );
+    saveMockSessions(updatedSessions);
+
+    return {
+      message: fullReply,
+      provider: "simulator"
+    };
+  }
+
+  const channel = new Channel<string>(onToken);
+
+  return await invoke<ChatResponse>("stream_prompt", {
+    sessionId,
+    input,
+    attachments: attachments || null,
+    channel,
+  });
+};
+
+export const countTokens = async (prompt: string, response?: string): Promise<TokenCountResponse> => {
+  if (!isTauri()) {
+    const prompt_tokens = Math.ceil(prompt.length / 4);
+    const response_tokens = response ? Math.ceil(response.length / 4) : 0;
+    return {
+      prompt_tokens,
+      response_tokens,
+      total_tokens: prompt_tokens + response_tokens,
+    };
+  }
+  return await invoke<TokenCountResponse>("count_tokens", {
+    prompt,
+    response: response || null,
   });
 };
 

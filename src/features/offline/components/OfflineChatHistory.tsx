@@ -1,12 +1,56 @@
 import { useEffect, useRef, useState, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cpu, User, ChevronDown, FileText } from 'lucide-react';
+import { Cpu, User, ChevronDown, ChevronRight, FileText, Brain } from 'lucide-react';
 import { Message } from '@/context/SessionContext';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
+import { parseThinking, estimateTokens } from '@/utils/chatUtils';
 
 interface OfflineMessageItemProps {
   msg: Message;
 }
+
+const CollapsibleThinkingBlock = ({ thinking, isDone }: { thinking: string; isDone: boolean }) => {
+  const [isOpen, setIsOpen] = useState(!isDone);
+
+  useEffect(() => {
+    if (!isDone) {
+      setIsOpen(true);
+    }
+  }, [isDone]);
+
+  return (
+    <div className="border border-offline-border/40 bg-offline-surface/10 rounded-lg my-2 overflow-hidden text-[13px]">
+      <button
+        onClick={() => isDone && setIsOpen(!isOpen)}
+        disabled={!isDone}
+        className={`w-full flex items-center justify-between px-3 py-2 bg-offline-surface/30 text-offline-core/70 hover:text-offline-core select-none font-mono text-[10px] uppercase tracking-wider font-semibold border-b border-offline-border/20 transition-colors ${isDone ? 'cursor-pointer' : 'cursor-default'}`}
+      >
+        <div className="flex items-center gap-2">
+          <Brain size={12} className={!isDone ? "animate-pulse text-offline-core" : "text-offline-core/55"} />
+          <span>{isDone ? 'Thinking Process' : 'JARVIS is thinking...'}</span>
+        </div>
+        {isDone && (isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
+      </button>
+      
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="p-3 font-mono text-xs text-secondary-txt/65 bg-black/20 overflow-x-auto whitespace-pre-wrap leading-relaxed border-t border-white/5"
+          >
+            {thinking}
+            {!isDone && (
+              <span className="inline-block w-1.5 h-3 bg-offline-core/80 ml-1 animate-pulse" />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const OfflineMessageItem = memo(({ msg }: OfflineMessageItemProps) => {
   return (
@@ -40,9 +84,14 @@ const OfflineMessageItem = memo(({ msg }: OfflineMessageItemProps) => {
             }`}>
               {msg.sender === 'user' ? '[AUTHORIZED_USER // SECURE_NODE]' : '[JARVIS_CORE // AIR_GAPPED_STANDBY]'}
             </span>
-            <span className="font-mono text-[9px] text-white/20 font-bold">
+            <div className="flex items-center gap-2 font-mono text-[9px] text-white/20 font-bold">
+              <span className="text-secondary-txt/40 mr-1 border border-white/5 px-1 py-0.5 rounded bg-white/[0.02]">
+                {msg.tokenCount !== undefined 
+                  ? `${msg.tokenCount} TOKENS` 
+                  : `${estimateTokens(msg.text)} TOKENS (EST)`}
+              </span>
               SYS_OK
-            </span>
+            </div>
           </div>
           {(() => {
             const lines = msg.text.split('\n');
@@ -59,6 +108,21 @@ const OfflineMessageItem = memo(({ msg }: OfflineMessageItemProps) => {
             }
 
             const cleanText = contentLines.join('\n').trim();
+
+            if (msg.sender === 'jarvis') {
+              const parsed = parseThinking(cleanText);
+              return (
+                <div className="flex flex-col gap-2">
+                  {parsed.hasThinking && parsed.thinking && (
+                    <CollapsibleThinkingBlock 
+                      thinking={parsed.thinking} 
+                      isDone={parsed.isThinkingDone} 
+                    />
+                  )}
+                  {parsed.content && <MarkdownRenderer content={parsed.content} theme="offline" />}
+                </div>
+              );
+            }
 
             return (
               <div className="flex flex-col gap-2">

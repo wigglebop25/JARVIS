@@ -1,13 +1,15 @@
-import { useEffect, useRef, memo } from 'react';
+import { useEffect, useRef, memo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cpu, User, FileText, X } from 'lucide-react';
+import { Cpu, User, FileText, X, Brain, ChevronDown, ChevronRight } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { OfflineLoading } from '@/features/offline/components/OfflineLoading';
+import { parseThinking, estimateTokens } from '@/utils/chatUtils';
 
 export interface Message {
   id: string;
   sender: 'user' | 'jarvis';
   text: string;
+  tokenCount?: number;
 }
 
 interface MCPMessageLogProps {
@@ -19,6 +21,49 @@ interface MCPMessageLogProps {
 interface OnlineMessageItemProps {
   msg: Message;
 }
+
+const CollapsibleThinkingBlock = ({ thinking, isDone }: { thinking: string; isDone: boolean }) => {
+  const [isOpen, setIsOpen] = useState(!isDone);
+
+  useEffect(() => {
+    if (!isDone) {
+      setIsOpen(true);
+    }
+  }, [isDone]);
+
+  return (
+    <div className="border border-theme-border/40 bg-theme-surface-2/10 rounded-lg my-2 overflow-hidden text-[13px]">
+      <button
+        onClick={() => isDone && setIsOpen(!isOpen)}
+        disabled={!isDone}
+        className={`w-full flex items-center justify-between px-3 py-2 bg-theme-surface-2/30 text-theme-accent/70 hover:text-theme-accent select-none font-mono text-[10px] uppercase tracking-wider font-semibold border-b border-theme-border/20 transition-colors ${isDone ? 'cursor-pointer' : 'cursor-default'}`}
+      >
+        <div className="flex items-center gap-2">
+          <Brain size={12} className={!isDone ? "animate-pulse text-theme-accent" : "text-theme-accent/50"} />
+          <span>{isDone ? 'Thinking Process' : 'JARVIS is thinking...'}</span>
+        </div>
+        {isDone && (isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
+      </button>
+      
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="p-3 font-mono text-xs text-secondary-txt/65 bg-black/15 overflow-x-auto whitespace-pre-wrap leading-relaxed border-t border-white/5"
+          >
+            {thinking}
+            {!isDone && (
+              <span className="inline-block w-1.5 h-3 bg-theme-accent/80 ml-1 animate-pulse" />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const OnlineMessageItem = memo(({ msg }: OnlineMessageItemProps) => {
   return (
@@ -54,9 +99,14 @@ const OnlineMessageItem = memo(({ msg }: OnlineMessageItemProps) => {
             }`}>
               {msg.sender === 'user' ? '[AUTHORIZED_USER // SECURE_NODE]' : '[JARVIS_CORE // UPLINK_ONLINE]'}
             </span>
-            <span className="font-mono text-[9px] text-white/20 font-bold">
+            <div className="flex items-center gap-2 font-mono text-[9px] text-white/20 font-bold">
+              <span className="text-secondary-txt/40 mr-1 border border-white/5 px-1 py-0.5 rounded bg-white/[0.02]">
+                {msg.tokenCount !== undefined 
+                  ? `${msg.tokenCount} TOKENS` 
+                  : `${estimateTokens(msg.text)} TOKENS (EST)`}
+              </span>
               SYS_OK
-            </span>
+            </div>
           </div>
 
           {(() => {
@@ -74,6 +124,21 @@ const OnlineMessageItem = memo(({ msg }: OnlineMessageItemProps) => {
             }
 
             const cleanText = contentLines.join('\n').trim();
+
+            if (msg.sender === 'jarvis') {
+              const parsed = parseThinking(cleanText);
+              return (
+                <div className="flex flex-col gap-2">
+                  {parsed.hasThinking && parsed.thinking && (
+                    <CollapsibleThinkingBlock 
+                      thinking={parsed.thinking} 
+                      isDone={parsed.isThinkingDone} 
+                    />
+                  )}
+                  {parsed.content && <MarkdownRenderer content={parsed.content} theme="online" />}
+                </div>
+              );
+            }
 
             return (
               <div className="flex flex-col gap-2">
