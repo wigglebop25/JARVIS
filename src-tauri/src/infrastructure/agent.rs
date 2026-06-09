@@ -9,10 +9,10 @@ use agent_rs_lib::agent::tools::{
 use agent_rs_lib::config::McpConfig;
 use agent_rs_lib::mcp::client::McpClient;
 use agent_rs_lib::security::SandboxConfig;
-use rig::agent::Agent;
-use rig::prelude::*;
-use rig::providers::{anthropic, gemini, openai};
-use rig::tool::ToolDyn;
+use rig_core::agent::Agent;
+use rig_core::prelude::*;
+use rig_core::providers::{anthropic, gemini, openai};
+use rig_core::tool::ToolDyn;
 use std::path::Path;
 use std::sync::LazyLock;
 use tokio::sync::RwLock;
@@ -62,7 +62,7 @@ impl AppAgent {
     pub async fn chat(
         &self,
         prompt: &str,
-        history: &mut Vec<rig::message::Message>,
+        history: &mut Vec<rig_core::message::Message>,
     ) -> Result<String, AppError> {
         match self {
             AppAgent::OpenAi(agent) => agent
@@ -94,9 +94,9 @@ impl AppAgent {
     pub async fn stream_chat(
         &self,
         prompt: &str,
-        history: &[rig::message::Message],
+        history: &[rig_core::message::Message],
         channel: &tauri::ipc::Channel<String>,
-    ) -> Result<Vec<rig::message::Message>, AppError> {
+    ) -> Result<Vec<rig_core::message::Message>, AppError> {
         match self {
             AppAgent::OpenAi(agent) => {
                 let (stream, rx) = agent
@@ -125,24 +125,28 @@ impl AppAgent {
 
 async fn consume_chat_stream<S, R>(
     mut stream: ContextManagedChatStream<S, R>,
-    rx: tokio::sync::oneshot::Receiver<Vec<rig::message::Message>>,
+    rx: tokio::sync::oneshot::Receiver<Vec<rig_core::message::Message>>,
     channel: &tauri::ipc::Channel<String>,
-) -> Result<Vec<rig::message::Message>, AppError>
+) -> Result<Vec<rig_core::message::Message>, AppError>
 where
-    S: futures::Stream<Item = Result<rig::agent::MultiTurnStreamItem<R>, rig::agent::StreamingError>> + Unpin,
+    S: futures::Stream<Item = Result<rig_core::agent::MultiTurnStreamItem<R>, rig_core::agent::StreamingError>> + Unpin,
     R: Unpin,
 {
     use futures::StreamExt;
+    let mut aborted = false;
     while let Some(chunk) = stream.next().await {
         match chunk {
-            Ok(rig::agent::MultiTurnStreamItem::StreamAssistantItem(
-                rig::streaming::StreamedAssistantContent::Text(text),
+            Ok(rig_core::agent::MultiTurnStreamItem::StreamAssistantItem(
+                rig_core::streaming::StreamedAssistantContent::Text(text),
             )) => {
                 if channel.send(text.to_string()).is_err() {
+                    aborted = true;
                     break;
                 }
             }
-            Ok(rig::agent::MultiTurnStreamItem::FinalResponse(_)) => {}
+            Ok(rig_core::agent::MultiTurnStreamItem::FinalResponse(resp)) => {
+                tracing::debug!("Stream final response: {:?}", resp);
+            }
             Err(e) => {
                 return Err(AppError::SystemError(e.to_string()));
             }
@@ -152,9 +156,23 @@ where
         }
     }
 
-    let updated_history = rx
+    // On abort, stream is dropped implicitly by RAII.
+    // On success, we must explicitly drop stream before awaiting rx,
+    // because stream owns the oneshot sender that rx is waiting on.
+    if aborted {
+        return Err(AppError::SystemError("Stream aborted: channel closed".to_string()));
+    }
+
+    drop(stream);
+
+    let raw_history = rx
         .await
         .map_err(|e| AppError::SystemError(e.to_string()))?;
+
+    // Strip reasoning blocks so they never enter persisted history.
+    // Reasoning is ephemeral chain-of-thought; consumers who want to display
+    // it get it from the stream in real-time (StreamAssistantContent::Reasoning).
+    let updated_history = agent_rs_lib::agent::strip_reasoning_from_history(raw_history);
     Ok(updated_history)
 }
 
@@ -259,7 +277,7 @@ impl AgentManager {
     pub async fn send_prompt(
         &self,
         prompt: &str,
-        history: &mut Vec<rig::message::Message>,
+        history: &mut Vec<rig_core::message::Message>,
         config: &AppConfig,
         app: Option<&tauri::AppHandle>,
     ) -> Result<String, AppError> {
@@ -309,11 +327,11 @@ impl AgentManager {
     pub async fn send_stream_prompt(
         &self,
         prompt: &str,
-        history: &[rig::message::Message],
+        history: &[rig_core::message::Message],
         config: &AppConfig,
         app: Option<&tauri::AppHandle>,
         channel: &tauri::ipc::Channel<String>,
-    ) -> Result<Vec<rig::message::Message>, AppError> {
+    ) -> Result<Vec<rig_core::message::Message>, AppError> {
         let signature = ConfigSignature::from_config(config);
 
         let needs_rebuild = {
@@ -426,11 +444,11 @@ async fn build_agent(
 
             let model = client.completion_model(&config.chat_model);
 
-            let compaction_model = rig::agent::AgentBuilder::new(model.clone())
+            let compaction_model = rig_core::agent::AgentBuilder::new(model.clone())
                 .preamble(&config.compaction_prompt)
                 .build();
 
-            let agent = rig::agent::AgentBuilder::new(model)
+            let agent = rig_core::agent::AgentBuilder::new(model)
                 .tools(tools)
                 .preamble(&config.system_prompt)
                 .default_max_turns(20)

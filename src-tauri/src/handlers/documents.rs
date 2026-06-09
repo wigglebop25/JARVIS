@@ -4,7 +4,7 @@ use agent_rs_lib::agent::tools::{
     GlobSearchTool, GrepSearchTool, ListDirectoryTool, ReadDocumentTool, WriteDocumentTool,
 };
 use agent_rs_lib::security::SandboxConfig;
-use rig::tool::ToolDyn;
+use rig_core::tool::ToolDyn;
 use std::collections::HashSet;
 
 pub async fn read_document(

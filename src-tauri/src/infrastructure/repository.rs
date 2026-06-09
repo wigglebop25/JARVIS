@@ -1,7 +1,7 @@
 use crate::domain::chat::Session;
 use crate::domain::errors::AppError;
 use crate::infrastructure::db::DatabaseManager;
-use rig::message::Message;
+use rig_core::message::Message;
 use rusqlite::params;
 use uuid::Uuid;
 

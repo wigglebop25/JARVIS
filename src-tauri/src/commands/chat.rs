@@ -11,7 +11,7 @@ use crate::handlers::chat::{get_providers, send_prompt, send_stream_prompt, set_
 use crate::infrastructure::db::DatabaseManager;
 use crate::infrastructure::repository::SessionRepository;
 use agent_rs_lib::agent::memory::tokenizer;
-use rig::message::Message;
+use rig_core::message::Message;
 use tauri::State;
 
 /// Creates a new chat session with an optional human-readable title.

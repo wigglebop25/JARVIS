@@ -2,7 +2,23 @@ use crate::domain::config::{AppConfig, Providers};
 use crate::domain::errors::AppError;
 use crate::infrastructure::agent::AGENT_MANAGER;
 use crate::infrastructure::repository::SessionRepository;
+use rig_core::message::{AssistantContent, Message, UserContent};
+use std::collections::HashMap;
 use std::path::Path;
+use std::sync::{Arc, LazyLock};
+
+/// Per-session lock that serialises load→agent→save critical sections.
+/// Prevents two concurrent `send_prompt`/`send_stream_prompt` calls for
+/// the same session from racing on history reads and writes.
+static SESSION_LOCKS: LazyLock<tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(HashMap::new()));
+
+async fn acquire_session_lock(session_id: &str) -> Arc<tokio::sync::Mutex<()>> {
+    let mut map = SESSION_LOCKS.lock().await;
+    map.entry(session_id.to_string())
+        .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+        .clone()
+}
 
 /// Sends a user prompt to the cached LLM agent and persists the conversation.
 ///
@@ -41,6 +57,9 @@ pub async fn send_prompt(
     repo: &SessionRepository<'_>,
     app: Option<&tauri::AppHandle>,
 ) -> Result<String, AppError> {
+    let lock = acquire_session_lock(session_id).await;
+    let _guard = lock.lock().await;
+
     let mut history = repo.get_session_history(session_id)?;
 
     let prompt_with_attachments = prepare_prompt_with_attachments(input, attachments);
@@ -77,6 +96,59 @@ pub async fn send_prompt(
 /// # Returns
 ///
 /// Returns the assistant's final response text on success, or an [`AppError`] on failure.
+fn assistant_message_text(content: &rig_core::OneOrMany<rig_core::message::AssistantContent>) -> String {
+    content
+        .iter()
+        .filter_map(|item| match item {
+            rig_core::message::AssistantContent::Text(t) => Some(t.text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn deduplicate_consecutive_assistant_messages(
+    history: Vec<Message>,
+) -> Vec<Message> {
+    let mut result: Vec<Message> = Vec::new();
+    for msg in history {
+        if let Message::Assistant { content, .. } = &msg {
+            if let Some(Message::Assistant {
+                content: prev_content,
+                ..
+            }) = result.last()
+            {
+                let prev_text = assistant_message_text(prev_content);
+                let curr_text = assistant_message_text(content);
+                if prev_text == curr_text {
+                    let prev_has_tools = prev_content
+                        .iter()
+                        .any(|item| matches!(item, rig_core::message::AssistantContent::ToolCall(_)));
+                    let curr_has_tools = content
+                        .iter()
+                        .any(|item| matches!(item, rig_core::message::AssistantContent::ToolCall(_)));
+                    if curr_has_tools != prev_has_tools {
+                        // One has tools, the other doesn't — keep the one with tools
+                        // (richer context). If curr is the one with tools, replace
+                        // prev; if prev is the one with tools, keep prev and skip curr.
+                        if curr_has_tools {
+                            result.pop();
+                            result.push(msg);
+                        }
+                    } else if prev_has_tools && curr_has_tools {
+                        // Both have tool calls — may represent distinct tool invocations.
+                        result.push(msg);
+                    }
+                    // else: neither has tools — identical text-only duplicate, skip curr.
+                    continue;
+                }
+            }
+        }
+        result.push(msg);
+    }
+    result
+}
+
 pub async fn send_stream_prompt(
     session_id: &str,
     input: &str,
@@ -86,6 +158,9 @@ pub async fn send_stream_prompt(
     app: Option<&tauri::AppHandle>,
     channel: tauri::ipc::Channel<String>,
 ) -> Result<String, AppError> {
+    let lock = acquire_session_lock(session_id).await;
+    let _guard = lock.lock().await;
+
     let history = repo.get_session_history(session_id)?;
 
     let prompt_with_attachments = prepare_prompt_with_attachments(input, attachments);
@@ -95,9 +170,12 @@ pub async fn send_stream_prompt(
         .await?;
 
     let final_response =
-        if let Some(rig::message::Message::Assistant { content, .. }) = updated_history.last() {
-            if let Some(rig::message::AssistantContent::Text(text)) = content.iter().next() {
-                text.text.clone()
+        if let Some(rig_core::message::Message::Assistant { content, .. }) = updated_history.last() {
+            if let Some(text) = content.iter().find_map(|item| match item {
+                AssistantContent::Text(t) => Some(t.text.clone()),
+                _ => None,
+            }) {
+                text
             } else {
                 return Err(AppError::SystemError(
                     "Streaming response completed but did not contain any text content".to_string(),
@@ -111,6 +189,8 @@ pub async fn send_stream_prompt(
         };
 
     update_history_with_clean_user_message(&mut updated_history, input, attachments);
+
+    let updated_history = deduplicate_consecutive_assistant_messages(updated_history);
 
     repo.save_session_history(session_id, &updated_history)?;
 
@@ -190,21 +270,36 @@ fn prepare_prompt_with_attachments(input: &str, attachments: Option<&[String]>) 
 }
 
 fn update_history_with_clean_user_message(
-    history: &mut [rig::message::Message],
+    history: &mut [Message],
     input: &str,
     attachments: Option<&[String]>,
 ) {
-    let len = history.len();
-    if len >= 2 {
-        if let Some(user_msg) = history.get_mut(len - 2) {
-            let mut clean_text = String::new();
-            if let Some(paths) = attachments {
+    let Some(paths) = attachments else {
+        return;
+    };
+    if paths.is_empty() {
+        return;
+    }
+
+    // Search from the end of the history for the user message that has the attachments metadata
+    for msg in history.iter_mut().rev() {
+        if let Message::User { content } = msg {
+            let is_attachment_msg = match content.first_ref() {
+                UserContent::Text(text_content) => {
+                    text_content.text.starts_with("[Attached Document:")
+                }
+                _ => false,
+            };
+
+            if is_attachment_msg {
+                let mut clean_text = String::new();
                 for path in paths {
                     clean_text.push_str(&format!("[Attached: {}]\n", path));
                 }
+                clean_text.push_str(input);
+                *msg = Message::user(&clean_text);
+                break;
             }
-            clean_text.push_str(input);
-            *user_msg = rig::message::Message::user(&clean_text);
         }
     }
 }
