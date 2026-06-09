@@ -2,10 +2,55 @@ import { useState, useEffect, useCallback } from 'react';
 import { Session } from '@/types/tauri';
 import { listSessions, getHistory } from '@/services/chatService';
 
+const isToolResultMessage = (content: any): boolean => {
+  if (!Array.isArray(content)) return false;
+  return content.some((item: any) => item?.type === 'toolresult');
+};
+
+const parseContent = (content: any): string => {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((item: any) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object') {
+          if (item.function || item.type === 'toolresult') return '';
+          if (typeof item.text === 'string') return item.text;
+          if (Array.isArray(item.content)) {
+            return item.content
+              .map((sub: any) => sub?.text || '')
+              .filter(Boolean)
+              .join('\n');
+          }
+          if (typeof item.content === 'string') return item.content;
+        }
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+};
+
+const extractToolCalls = (content: any): { name: string; args: string }[] => {
+  if (!Array.isArray(content)) return [];
+  return content
+    .filter((item: any) => item?.function && typeof item.function === 'object')
+    .map((item: any) => ({
+      name: item.function.name || 'unknown',
+      args: item.function.arguments
+        ? typeof item.function.arguments === 'string'
+          ? item.function.arguments
+          : JSON.stringify(item.function.arguments)
+        : '',
+    }));
+};
+
 export interface Message {
   id: string;
   sender: 'user' | 'jarvis';
   text: string;
+  toolCalls?: { name: string; args: string }[];
 }
 
 export const useChatSessions = () => {
@@ -48,11 +93,29 @@ export const useChatSessions = () => {
     setIsLoading(true);
     try {
       const history = await getHistory(sessionId);
-      const formatted: Message[] = history.map((msg, index) => ({
-        id: `${sessionId}-${index}`,
-        sender: msg.role === 'assistant' || msg.role === 'model' ? 'jarvis' : 'user',
-        text: msg.content,
-      }));
+      const filtered = history.filter((msg) => !isToolResultMessage(msg.content));
+      const formatted: Message[] = [];
+
+      for (const msg of filtered) {
+        const isAssistant = msg.role === 'assistant' || msg.role === 'model';
+        const text = parseContent(msg.content);
+        const toolCalls = extractToolCalls(msg.content);
+        const prev = formatted[formatted.length - 1];
+
+        if (isAssistant && prev && prev.sender === 'jarvis') {
+          if (text) prev.text = prev.text ? prev.text + '\n' + text : text;
+          if (toolCalls.length > 0) {
+            prev.toolCalls = [...(prev.toolCalls || []), ...toolCalls];
+          }
+        } else {
+          formatted.push({
+            id: `${sessionId}-${formatted.length}`,
+            sender: isAssistant ? 'jarvis' : 'user',
+            text,
+            toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          });
+        }
+      }
 
       // Add a friendly boot welcome message if there is no conversation history yet
       if (formatted.length === 0) {

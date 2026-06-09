@@ -4,11 +4,17 @@ import { Session, RigMessage } from '@/types/tauri';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
+export interface ToolCall {
+  name: string;
+  args: string;
+}
+
 export interface Message {
   id: string;
   sender: 'user' | 'jarvis';
   text: string;
   tokenCount?: number;
+  toolCalls?: ToolCall[];
 }
 
 interface SessionContextType {
@@ -40,7 +46,13 @@ const WELCOME_MESSAGE: Message = {
   text: 'SYSTEM_BOOT: Local Air-Gapped Node active. All neural links secure. How can I assist?',
 };
 
-/** Parse rig::message::Message content structure dynamically */
+/** Check if a message is a tool result (should not render as user prompt) */
+const isToolResultMessage = (content: any): boolean => {
+  if (!Array.isArray(content)) return false;
+  return content.some((item: any) => item?.type === 'toolresult');
+};
+
+/** Extract text only from content (skips tool calls and tool results) */
 const parseContent = (content: any): string => {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
@@ -48,7 +60,12 @@ const parseContent = (content: any): string => {
       .map((item: any) => {
         if (typeof item === 'string') return item;
         if (item && typeof item === 'object') {
-          return item.text || item.content || '';
+          if (item.function || item.type === 'toolresult') return '';
+          if (typeof item.text === 'string') return item.text;
+          if (Array.isArray(item.content)) {
+            return item.content.map((sub: any) => sub?.text || '').filter(Boolean).join('\n');
+          }
+          if (typeof item.content === 'string') return item.content;
         }
         return '';
       })
@@ -58,13 +75,50 @@ const parseContent = (content: any): string => {
   return '';
 };
 
-/** Map backend RigMessage[] → frontend Message[] */
-const mapHistory = (history: RigMessage[]): Message[] =>
-  history.map((msg, i) => ({
-    id: `hist-${i}-${Date.now()}`,
-    sender: msg.role === 'user' ? 'user' : 'jarvis',
-    text: parseContent(msg.content),
-  }));
+/** Extract tool calls from a content array */
+const extractToolCalls = (content: any): ToolCall[] => {
+  if (!Array.isArray(content)) return [];
+  return content
+    .filter((item: any) => item?.function && typeof item.function === 'object')
+    .map((item: any) => ({
+      name: item.function.name || 'unknown',
+      args: item.function.arguments
+        ? typeof item.function.arguments === 'string'
+          ? item.function.arguments
+          : JSON.stringify(item.function.arguments)
+        : '',
+    }));
+};
+
+/** Map backend RigMessage[] → frontend Message[], consolidating consecutive assistant messages */
+const mapHistory = (history: RigMessage[]): Message[] => {
+  const filtered = history.filter((msg) => !isToolResultMessage(msg.content));
+  const result: Message[] = [];
+
+  for (const msg of filtered) {
+    const isAssistant = msg.role === 'assistant' || msg.role === 'model';
+    const text = parseContent(msg.content);
+    const toolCalls = extractToolCalls(msg.content);
+    const prev = result[result.length - 1];
+
+    if (isAssistant && prev && prev.sender === 'jarvis') {
+      // Consolidate into previous assistant message
+      if (text) prev.text = prev.text ? prev.text + '\n' + text : text;
+      if (toolCalls.length > 0) {
+        prev.toolCalls = [...(prev.toolCalls || []), ...toolCalls];
+      }
+    } else {
+      result.push({
+        id: `hist-${result.length}-${Date.now()}`,
+        sender: isAssistant ? 'jarvis' : 'user',
+        text,
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      });
+    }
+  }
+
+  return result;
+};
 
 // ─── Provider ───────────────────────────────────────────────────────────────
 

@@ -33,7 +33,7 @@ export interface Session {
  */
 export interface RigMessage {
   role: string;
-  content: string;
+  content: Array<Record<string, any>>;
 }
 
 /**

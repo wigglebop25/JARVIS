@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cpu, User, ChevronDown, ChevronRight, FileText, Brain } from 'lucide-react';
+import { Cpu, User, ChevronDown, ChevronRight, FileText, Brain, Wrench } from 'lucide-react';
 import { Message } from '@/context/SessionContext';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { parseThinking, estimateTokens } from '@/utils/chatUtils';
@@ -48,6 +48,44 @@ const CollapsibleThinkingBlock = ({ thinking, isDone }: { thinking: string; isDo
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+};
+
+const ToolCallBlock = ({ toolCalls }: { toolCalls: { name: string; args: string }[] }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (toolCalls.length === 0) return null;
+
+  return (
+    <div className="my-2 space-y-1">
+      {toolCalls.map((tc, idx) => (
+        <div key={idx} className="border border-offline-border/30 bg-offline-surface-dark/30 rounded-lg overflow-hidden text-[12px]">
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 bg-offline-surface-dark/20 text-offline-core/60 hover:text-offline-core select-none font-mono text-[10px] uppercase tracking-wider font-semibold transition-colors cursor-pointer"
+          >
+            <Wrench size={10} className="shrink-0" />
+            <span className="truncate">{tc.name}</span>
+            <span className="ml-auto text-white/20">
+              {isOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+            </span>
+          </button>
+          <AnimatePresence initial={false}>
+            {isOpen && tc.args && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.1 }}
+                className="px-3 py-2 font-mono text-[10px] text-secondary-txt/50 bg-black/10 border-t border-white/5 overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto"
+              >
+                {tc.args}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      ))}
     </div>
   );
 };
@@ -118,6 +156,9 @@ const OfflineMessageItem = memo(({ msg }: OfflineMessageItemProps) => {
                       thinking={parsed.thinking} 
                       isDone={parsed.isThinkingDone} 
                     />
+                  )}
+                  {msg.toolCalls && msg.toolCalls.length > 0 && (
+                    <ToolCallBlock toolCalls={msg.toolCalls} />
                   )}
                   {parsed.content && <MarkdownRenderer content={parsed.content} theme="offline" />}
                 </div>
