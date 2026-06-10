@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import JarvisIcon from '@/assets/jarvislogofinal.svg';
-import { Settings, ChevronFirst, ChevronLast, Terminal, Plus, MessageSquare, Edit2, Trash2, Check, X } from 'lucide-react';
+import { Settings, ChevronFirst, ChevronLast, Terminal, Plus, MessageSquare, Edit2, Trash2, Check, X, Database } from 'lucide-react';
 import { useSession } from '@/context/SessionContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface OfflineSidebarProps {
   onSettingsClick: () => void;
@@ -26,8 +27,13 @@ const formatRelativeTime = (timestamp: number): string => {
 };
 
 export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const { sessions, activeSessionId, createNewSession, switchSession, renameSession, deleteSession } = useSession();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const isTerminalActive = location.pathname === '/';
+  const isRagActive = location.pathname === '/rag';
 
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -112,11 +118,21 @@ export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
         </button>
       </div>
 
-      {/* NAVIGATION: Local Terminal Label */}
-      <div className="py-3 px-2">
-        <div className="flex items-center h-10 rounded-md bg-offline-core/10 text-offline-core border border-offline-core/30 shadow-[inset_2px_0_0_var(--color-offline-core)] group cursor-default">
+      {/* NAVIGATION */}
+      <div className="py-3 px-2 flex flex-col gap-1 border-b border-white/5 mb-3 shrink-0">
+        {/* Local Terminal Button */}
+        <button
+          onClick={() => navigate('/')}
+          className={`w-full flex items-center h-10 rounded-md transition-all duration-200 group cursor-pointer outline-none
+            ${isTerminalActive 
+              ? 'bg-offline-core/10 text-offline-core border border-offline-core/30 shadow-[inset_2px_0_0_var(--color-offline-core)] font-bold' 
+              : 'text-secondary-txt/70 border border-transparent hover:bg-white/[0.03] hover:text-secondary-txt hover:border-white/5'
+            }
+          `}
+          title={!isOpen ? "Local Terminal" : ""}
+        >
           <div className="w-12 shrink-0 flex items-center justify-center transition-transform group-hover:scale-110">
-            <Terminal size={20} />
+            <Terminal size={18} />
           </div>
           <AnimatePresence mode="wait">
             {isOpen && (
@@ -124,13 +140,41 @@ export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, width: 0, transition: { duration: 0.1 } }}
-                className="font-mono text-sm whitespace-nowrap overflow-hidden"
+                className="font-mono text-xs whitespace-nowrap overflow-hidden"
               >
                 Local_Terminal
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </button>
+
+        {/* Knowledge Core Button */}
+        <button
+          onClick={() => navigate('/rag')}
+          className={`w-full flex items-center h-10 rounded-md transition-all duration-200 group cursor-pointer outline-none
+            ${isRagActive 
+              ? 'bg-offline-core/10 text-offline-core border border-offline-core/30 shadow-[inset_2px_0_0_var(--color-offline-core)] font-bold' 
+              : 'text-secondary-txt/70 border border-transparent hover:bg-white/[0.03] hover:text-secondary-txt hover:border-white/5'
+            }
+          `}
+          title={!isOpen ? "Knowledge Core" : ""}
+        >
+          <div className="w-12 shrink-0 flex items-center justify-center transition-transform group-hover:scale-110">
+            <Database size={18} />
+          </div>
+          <AnimatePresence mode="wait">
+            {isOpen && (
+              <motion.div 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, width: 0, transition: { duration: 0.1 } }}
+                className="font-mono text-xs whitespace-nowrap overflow-hidden"
+              >
+                Knowledge_Core
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </button>
       </div>
 
       {/* SESSION LIST */}

@@ -11,6 +11,7 @@ interface Props {
   setInput: (val: string) => void;
   onSend: (overrideText?: string, attachments?: string[]) => void;
   disabled?: boolean;
+  centered?: boolean;
 }
 
 // ─── Slash Commands ─────────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ interface AttachedFile {
   name: string;
 }
 
-export const OfflinePromptBar = ({ input, setInput, onSend, disabled }: Props) => {
+export const OfflinePromptBar = ({ input, setInput, onSend, disabled, centered = false }: Props) => {
   const { status, transcript, startListening, stopListening } = useVoice();
   const volume = useNeuralFrequency(status === 'LISTENING');
   const lastProcessedTranscript = useRef('');
@@ -250,7 +251,11 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled }: Props) =
   };
 
   return (
-    <div className={`w-full bg-offline-bg border-t border-offline-border/40 pt-8 pb-8 px-4 transition-opacity duration-500 ${disabled ? 'opacity-80' : 'opacity-100'}`}>
+    <motion.div 
+      layout
+      transition={{ type: "spring", stiffness: 220, damping: 25 }}
+      className={`w-full transition-all duration-500 ${centered ? 'pt-2 pb-2 px-0 bg-transparent' : 'bg-offline-bg border-t border-offline-border/30 pt-4 pb-4 px-4'} ${disabled ? 'opacity-80' : 'opacity-100'}`}
+    >
       <div className="max-w-5xl mx-auto relative group">
 
         {/* ── Slash Command Autocomplete Popup ── */}
@@ -287,11 +292,14 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled }: Props) =
         </AnimatePresence>
 
         {/* ── Input Container ── */}
-        <div className={`relative bg-offline-surface border rounded-2xl p-4 shadow-2xl transition-all duration-300
-          ${disabled 
-            ? 'border-offline-core/10 grayscale-[0.5]' 
-            : 'border-offline-border focus-within:border-offline-core/50 focus-within:shadow-[0_0_20px_rgba(var(--color-offline-core-rgb),0.08)] focus-within:ring-1 focus-within:ring-offline-core/30'
-          }`}
+        <motion.div 
+          layout
+          transition={{ type: "spring", stiffness: 220, damping: 25 }}
+          className={`relative bg-offline-surface border rounded-2xl p-4 shadow-2xl transition-all duration-300
+            ${disabled 
+              ? 'border-offline-core/10 grayscale-[0.5]' 
+              : 'border-offline-border focus-within:border-offline-core/50 focus-within:shadow-[0_0_20px_rgba(var(--color-offline-core-rgb),0.08)] focus-within:ring-1 focus-within:ring-offline-core/30'
+            }`}
         >
           {/* Attached Files List */}
           <AnimatePresence>
@@ -411,7 +419,7 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled }: Props) =
               {disabled ? <Loader2 size={20} className="animate-spin" /> : <Send size={18} />}
             </button>
           </div>
-        </div>
+        </motion.div>
 
         {/* Technical Footer Labels */}
         <div className="mt-4 flex justify-between items-center px-2">
@@ -435,6 +443,6 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled }: Props) =
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };

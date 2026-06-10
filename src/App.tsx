@@ -12,6 +12,7 @@ import { OfflineDashboardPage } from '@/pages/OfflineDashboardPage';
 import { DeviceManagementPage } from '@/pages/DeviceManagementPage';
 import { AutomationPage } from '@/pages/AutomationPage';
 import { ModeSelectionPage } from '@/pages/ModeSelectionPage';
+import { OfflineRAGPage } from '@/pages/OfflineRAGPage';
 
 // Components
 import { IntroBootSequence } from '@/components/ui/IntroBootSequence';
@@ -99,6 +100,7 @@ function App() {
                 {bootState === 'offline' ? (
                   <Route element={<OfflineMainLayout />}>
                     <Route path="/" element={<OfflineDashboardPage />} />
+                    <Route path="/rag" element={<OfflineRAGPage />} />
                     {/* Catch-all for offline: redirect any stray routes to terminal */}
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Route>
