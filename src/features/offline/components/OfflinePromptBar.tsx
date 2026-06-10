@@ -254,7 +254,7 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled, centered =
     <motion.div 
       layout
       transition={{ type: "spring", stiffness: 220, damping: 25 }}
-      className={`w-full transition-all duration-500 ${centered ? 'pt-2 pb-2 px-0 bg-transparent' : 'bg-offline-bg border-t border-offline-border/30 pt-4 pb-4 px-4'} ${disabled ? 'opacity-80' : 'opacity-100'}`}
+      className={`w-full transition-all duration-500 ${centered ? 'pt-2 pb-2 px-0 bg-transparent' : 'bg-offline-bg pt-4 pb-4 px-4'} ${disabled ? 'opacity-80' : 'opacity-100'}`}
     >
       <div className="max-w-5xl mx-auto relative group">
 

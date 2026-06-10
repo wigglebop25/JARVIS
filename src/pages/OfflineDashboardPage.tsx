@@ -56,7 +56,7 @@ export const OfflineDashboardPage = () => {
               animate={{ opacity: 1, height: "auto", flexGrow: 1 }}
               exit={{ opacity: 0, height: 0, flexGrow: 0 }}
               transition={{ type: "spring", stiffness: 200, damping: 25 }}
-              className="flex-1 flex flex-col overflow-hidden min-h-0"
+              className="flex-1 flex flex-col overflow-hidden min-h-0 border-b border-offline-border/30"
             >
               <OfflineChatHistory messages={messages} />
               
@@ -86,7 +86,7 @@ export const OfflineDashboardPage = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -25, scale: 0.9, height: 0, marginBottom: 0 }}
                 transition={{ duration: 0.35, ease: "easeInOut" }}
-                className="flex flex-col items-center mb-8 text-center select-none overflow-hidden shrink-0"
+                className="flex flex-col items-center mb-8 text-center select-none shrink-0 pt-8"
               >
                 <div className="relative mb-4">
                   <div className="absolute inset-0 bg-offline-core/10 rounded-full blur-xl animate-pulse" />
