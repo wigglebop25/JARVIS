@@ -3,7 +3,7 @@ import { OfflinePromptBar } from '@/features/offline/components/OfflinePromptBar
 import { OfflineLoading } from '@/features/offline/components/OfflineLoading';
 import { OfflineTelemetryHUD } from '@/features/offline/components/OfflineTelemetryHUD';
 import { useSession } from '@/context/SessionContext';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, Sparkles, MessageSquare, Terminal } from 'lucide-react';
 import JarvisIcon from '@/assets/jarvislogofinal.svg';
@@ -25,13 +25,8 @@ const formatRelativeTime = (timestamp: number): string => {
 };
 
 export const OfflineDashboardPage = () => {
-  const { messages, isThinking, input, setInput, sendMessage, sessions, activeSessionId, switchSession, createNewSession } = useSession();
+  const { messages, isThinking, input, setInput, sendMessage, sessions, activeSessionId, switchSession } = useSession();
   const [isHudOpen, setIsHudOpen] = useState(false);
-
-  // Default to a new clean session on mount so prompt box is centered by default
-  useEffect(() => {
-    createNewSession();
-  }, []);
 
   // Check if current session has any user prompts
   const hasUserMessages = messages.some(m => m.sender === 'user');

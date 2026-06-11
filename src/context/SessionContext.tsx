@@ -40,12 +40,6 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const WELCOME_MESSAGE: Message = {
-  id: 'welcome',
-  sender: 'jarvis',
-  text: 'SYSTEM_BOOT: Local Air-Gapped Node active. All neural links secure. How can I assist?',
-};
-
 /** Check if a message is a tool result (should not render as user prompt) */
 const isToolResultMessage = (content: any): boolean => {
   if (!Array.isArray(content)) return false;
@@ -125,12 +119,12 @@ const mapHistory = (history: RigMessage[]): Message[] => {
 export const SessionProvider = ({ children }: { children: React.ReactNode }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [input, setInput] = useState('');
   const initRef = useRef(false);
 
-  // ── Boot: load sessions or set draft state ──
+  // ── Boot: load sessions list but always start with a new draft session ──
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
@@ -138,21 +132,12 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     const init = async () => {
       try {
         const existingSessions = await listSessions();
-
-        if (existingSessions.length > 0) {
-          setSessions(existingSessions);
-          // Auto-select the most recent session
-          const latest = existingSessions[0]; // Already ordered by updated_at DESC
-          setActiveSessionId(latest.id);
-          await loadSessionHistory(latest.id);
-        } else {
-          // No sessions exist — start in draft mode
-          prepareDraftSession();
-        }
+        setSessions(existingSessions);
       } catch (err) {
-        console.warn('[SessionContext] Init failed, setting local draft session:', err);
-        prepareDraftSession();
+        console.warn('[SessionContext] Init failed to load sessions:', err);
       }
+      // Always start with a fresh draft session
+      prepareDraftSession();
     };
 
     init();
@@ -160,20 +145,20 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
   const prepareDraftSession = () => {
     setActiveSessionId(null);
-    setMessages([WELCOME_MESSAGE]);
+    setMessages([]);
   };
 
   const loadSessionHistory = async (sessionId: string) => {
     try {
       const history = await getHistory(sessionId);
       if (history.length > 0) {
-        setMessages([WELCOME_MESSAGE, ...mapHistory(history)]);
+        setMessages(mapHistory(history));
       } else {
-        setMessages([WELCOME_MESSAGE]);
+        setMessages([]);
       }
     } catch (err) {
       console.error('[SessionContext] Failed to load history:', err);
-      setMessages([WELCOME_MESSAGE]);
+      setMessages([]);
     }
   };
 
