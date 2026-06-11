@@ -1,9 +1,8 @@
-// src/features/ui/components/NeuralCore.tsx
 import { motion } from 'framer-motion';
 import { useVoice } from '@/context/VoiceContext';
 import { useNeuralFrequency } from '@/hooks/useNeuralFrequency';
 
-export const NeuralCore = () => {
+export const VoiceStatusOrb = () => {
   const { status } = useVoice();
   const volume = useNeuralFrequency(status === 'LISTENING');
   const isOffline = sessionStorage.getItem('jarvis_mode') === 'offline';

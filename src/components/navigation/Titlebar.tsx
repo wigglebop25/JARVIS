@@ -1,7 +1,7 @@
 import { Search, Activity } from 'lucide-react';
 import { useState } from 'react';
 import { useSystemInfo } from '@/hooks/useSystemInfo';
-import { NeuralCore } from '@/features/mcp/components/NeuralCore';
+import { VoiceStatusOrb } from '@/features/chat';
 
 export const Titlebar = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,7 +51,7 @@ export const Titlebar = () => {
         {/* NEURAL CORE: Scaled to fit titlebar height */}
         <div className="h-10 w-20 flex items-center justify-center border-x border-white/5 px-4">
           <div className="scale-[0.4] origin-center">
-            <NeuralCore />
+            <VoiceStatusOrb />
           </div>
         </div>
       </div>

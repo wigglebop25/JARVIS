@@ -1,160 +1,38 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Send, X, Mic, Terminal, Paperclip, FileText } from 'lucide-react';
-import { MCPMessageLog, Message } from './MCPMessageLog'; 
+import { ChevronLeft, Send, X, Mic, Terminal, Paperclip } from 'lucide-react';
+import { MessageLog } from './components/MessageLog';
+import type { Message } from './types';
 import { useVoice } from '@/context/VoiceContext'; 
-import { NeuralCore } from '@/features/mcp/components/NeuralCore';
+import { VoiceStatusOrb } from './VoiceStatusOrb';
 import { streamPrompt, countTokens, createSession } from '@/services/chatService';
 import { useNeuralFrequency } from '@/hooks/useNeuralFrequency';
-import { open } from '@tauri-apps/plugin-dialog';
+import { VoiceWaveform, AttachedFileChips, useFileAttachments, useTokenCount, useAutoSendTranscript } from '@/features/prompt';
 
-// ─── Voice Waveform Visualizer (Online Theme Matcher) ──────────────────────
-const VoiceWaveform = ({ volume }: { volume: number }) => {
-  const barCount = 16;
-  const normalizedVol = Math.min(100, Math.max(0, volume));
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scaleX: 0.8 }}
-      animate={{ opacity: 1, scaleX: 1 }}
-      exit={{ opacity: 0, scaleX: 0.8 }}
-      className="flex items-center gap-[2px] h-8 px-2"
-    >
-      {Array.from({ length: barCount }).map((_, i) => {
-        // Create a wave pattern that's taller in the center
-        const centerWeight = 1 - Math.abs(i - barCount / 2) / (barCount / 2);
-        const randomFactor = 0.4 + Math.random() * 0.6;
-        const height = Math.max(3, (normalizedVol / 100) * 24 * centerWeight * randomFactor);
-
-        return (
-          <motion.div
-            key={i}
-            animate={{ height }}
-            transition={{ duration: 0.08, ease: 'easeOut' }}
-            className="w-[2px] rounded-full bg-theme-accent/80"
-          />
-        );
-      })}
-    </motion.div>
-  );
-};
-
-export const MCPTerminal = () => {
+export const OnlinePromptOverlay = () => {
   const { status, transcript, startListening, stopListening, setStatus } = useVoice(); 
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
-  const [promptTokens, setPromptTokens] = useState<number>(0);
-  const [isCalculatingTokens, setIsCalculatingTokens] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [showHistory, setShowHistory] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  // Use a ref to track if we've already sent the current transcript
-  const lastProcessedTranscript = useRef('');
-  const tokenDebounceRef = useRef<any>(null);
+  const { files: attachedFiles, add: handleAttachClick, remove: removeFile, clear: clearFiles } = useFileAttachments();
+  const { tokens: promptTokens, isCalculating: isCalculatingTokens, update: updateTokenCount } = useTokenCount();
 
-  interface AttachedFile {
-    id: string;
-    path: string;
-    name: string;
-  }
-
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-
-  const handleAttachClick = async () => {
-    try {
-      const selected = await open({
-        multiple: true,
-        filters: [{
-          name: 'Documents',
-          extensions: ['txt', 'md', 'pdf']
-        }]
-      });
-
-      if (!selected) return; // User cancelled
-      
-      const paths = Array.isArray(selected) ? selected : [selected];
-      const newFiles: AttachedFile[] = [];
-
-      for (const selectedPath of paths) {
-        if (attachedFiles.some(f => f.path === selectedPath)) continue;
-
-        const fileName = selectedPath.split(/[/\\]/).pop() || selectedPath;
-        newFiles.push({
-          id: `${selectedPath}-${Date.now()}-${Math.random()}`,
-          path: selectedPath,
-          name: fileName
-        });
-      }
-
-      if (newFiles.length > 0) {
-        setAttachedFiles(prev => [...prev, ...newFiles]);
-      }
-    } catch (err) {
-      console.error("Failed to select file:", err);
-    }
-  };
-
-  const removeFile = (id: string) => {
-    setAttachedFiles(prev => prev.filter(f => f.id !== id));
-  };
-
-  // Live prompt token counting
   const handleInputChange = (val: string) => {
     setInput(val);
-    if (!val.trim()) {
-      setPromptTokens(0);
-      setIsCalculatingTokens(false);
-      if (tokenDebounceRef.current) {
-        clearTimeout(tokenDebounceRef.current);
-      }
-      return;
-    }
-
-    setIsCalculatingTokens(true);
-
-    if (tokenDebounceRef.current) {
-      clearTimeout(tokenDebounceRef.current);
-    }
-
-    tokenDebounceRef.current = setTimeout(async () => {
-      try {
-        const res = await countTokens(val);
-        setPromptTokens(res.prompt_tokens);
-      } catch (err) {
-        console.error("Failed to count tokens:", err);
-      } finally {
-        setIsCalculatingTokens(false);
-      }
-    }, 300);
+    updateTokenCount(val);
   };
 
-  useEffect(() => {
-    return () => {
-      if (tokenDebounceRef.current) {
-        clearTimeout(tokenDebounceRef.current);
-      }
-    };
-  }, []);
-
-  // 🏛️ 1. AUTOMATIC SEND LOGIC
-  // When the transcriber finishes (transcript arrives), if we're open, send it.
-  useEffect(() => {
-    if (transcript && transcript !== lastProcessedTranscript.current) {
-      setInput(transcript);
-      lastProcessedTranscript.current = transcript;
-      handleSend(transcript);
-    }
-  }, [transcript]);
-
-  // 🏛️ 2. VOICE ACTIVATION TRIGGER
+  // 🏛️ 1. VOICE ACTIVATION TRIGGER
   useEffect(() => {
     if (status === 'LISTENING') {
       setIsOpen(true);
     }
   }, [status]);
 
-  const handleSend = async (overrideText?: string) => {
+  const handleSend = useCallback(async (overrideText?: string) => {
     const textToSend = (overrideText || input).trim();
     const paths = attachedFiles.map(f => f.path);
     if (!textToSend && paths.length === 0) return;
@@ -165,7 +43,6 @@ export const MCPTerminal = () => {
       displayMessage = `${attachmentsHeader}\n${textToSend}`;
     }
     
-    // Calculate user prompt tokens
     let userTokensCount = promptTokens;
     if (userTokensCount === 0 && textToSend) {
       try {
@@ -179,14 +56,12 @@ export const MCPTerminal = () => {
     const userId = `user-${Date.now()}`;
     const assistantId = `jarvis-${Date.now()}`;
 
-    // Add User Message
     const userMsg: Message = { 
       id: userId, 
       sender: 'user', 
       text: displayMessage,
       tokenCount: userTokensCount
     };
-    // Prepare assistant message
     const assistantMsg: Message = {
       id: assistantId,
       sender: 'jarvis',
@@ -195,18 +70,14 @@ export const MCPTerminal = () => {
 
     setMessages(prev => [...prev, userMsg, assistantMsg]);
     
-    // RESET INPUT & ATTACHMENTS
     setInput('');
-    setPromptTokens(0);
-    setAttachedFiles([]);
+    clearFiles();
     setShowHistory(true);
     setStatus('THINKING');
     
-    // Ensure voice is stopped
     if (status === 'LISTENING') stopListening();
 
     try {
-      // Ensure we have a session, create one on-the-fly if needed
       let sid = sessionId;
       if (!sid) {
         sid = await createSession(textToSend.substring(0, 30) || "Document Query");
@@ -225,7 +96,6 @@ export const MCPTerminal = () => {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: accumulatedText } : m));
       });
       
-      // Query final exact tokens
       let finalPromptTokens = userTokensCount;
       let responseTokens = 0;
       try {
@@ -257,10 +127,12 @@ export const MCPTerminal = () => {
     } finally {
       setStatus('IDLE');
     }
-  };
+  }, [input, attachedFiles, promptTokens, sessionId, status, stopListening]);
+
+  useAutoSendTranscript({ status, transcript, onSend: handleSend });
 
   const frequency = useNeuralFrequency(status === 'LISTENING');
-  const scale = 1 + (frequency / 100) * 0.6; // Scale factor for voice rings
+  const scale = 1 + (frequency / 100) * 0.6;
 
   return (
     <>
@@ -278,7 +150,7 @@ export const MCPTerminal = () => {
               
               <AnimatePresence>
                 {showHistory && messages.length > 0 && (
-                  <MCPMessageLog 
+                  <MessageLog theme="online" variant="overlay"
                     messages={messages} 
                     isThinking={status === 'THINKING'} 
                     onClose={() => setShowHistory(false)}
@@ -288,36 +160,7 @@ export const MCPTerminal = () => {
 
               <div className="w-full flex flex-col items-center pointer-events-auto">
                 {/* Attached Files List */}
-                <AnimatePresence>
-                  {attachedFiles.length > 0 && (
-                    <motion.div 
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="w-full flex flex-wrap gap-2 px-6 pb-3 mb-2 border-b border-white/5 justify-start"
-                    >
-                      {attachedFiles.map(file => (
-                        <motion.div
-                          key={file.id}
-                          initial={{ scale: 0.8, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.8, opacity: 0 }}
-                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-secondary-txt text-xs font-mono select-none backdrop-blur-md transition-all hover:bg-white/10"
-                          title={file.path}
-                        >
-                          <FileText size={12} className="opacity-75" />
-                          <span className="max-w-[150px] truncate">{file.name}</span>
-                          <button
-                            onClick={() => removeFile(file.id)}
-                            className="p-0.5 rounded hover:bg-white/10 text-tertiary-txt hover:text-white transition-colors cursor-pointer"
-                          >
-                            <X size={12} />
-                          </button>
-                        </motion.div>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <AttachedFileChips files={attachedFiles} onRemove={removeFile} />
 
                 <div className={`w-full transition-all duration-500 bg-theme-surface-1 backdrop-blur-3xl border rounded-full p-2 flex items-center
                   ${status === 'LISTENING' ? 'border-theme-accent shadow-[0_0_30px_rgba(var(--theme-accent-rgb),0.2)]' : 
@@ -348,7 +191,7 @@ export const MCPTerminal = () => {
                         <span className="text-[11px] font-mono text-theme-accent uppercase tracking-[0.2em] animate-pulse">
                           Listening
                         </span>
-                        <VoiceWaveform volume={frequency} />
+                        <VoiceWaveform volume={frequency} barColor="bg-theme-accent/80" />
                       </motion.div>
                     ) : (
                       <motion.div
@@ -466,7 +309,7 @@ export const MCPTerminal = () => {
                 onClick={() => setIsOpen(true)}
                 className="w-14 h-14 rounded-full flex items-center justify-center bg-theme-surface-1 backdrop-blur-xl border border-theme-accent/50 text-theme-accent shadow-lg relative pointer-events-auto cursor-pointer"
               >
-                {status === 'IDLE' ? <Terminal size={22} /> : <div className="scale-50"><NeuralCore /></div>}
+                {status === 'IDLE' ? <Terminal size={22} /> : <div className="scale-50"><VoiceStatusOrb /></div>}
                 <div className="absolute inset-0 rounded-full border border-theme-accent animate-ping opacity-30" />
               </motion.button>
             </div>

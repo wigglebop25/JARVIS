@@ -4,10 +4,10 @@ import { Titlebar } from '@/components/navigation/Titlebar';
 import { Sidebar } from '@/components/navigation/Sidebar'; 
 import { Outlet } from 'react-router-dom'; 
 import { SettingsModal } from '@/components/modals/SettingsModal';
-import { MCPTerminal } from '@/features/mcp/components/MCPTerminal'; 
+import { OnlinePromptOverlay } from '@/features/chat'; 
 import { useTheme } from '@/context/ThemeContext';
 import { useVoice } from '@/context/VoiceContext';
-import { NeuralCore } from '@/features/mcp/components/NeuralCore';
+import { VoiceStatusOrb } from '@/features/chat';
 
 // ─── Floating Grid Particles Background ──────────────────────────────────────
 
@@ -165,7 +165,7 @@ export const MainLayout = () => {
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)} 
       />
-      <MCPTerminal />
+      <OnlinePromptOverlay />
 
       {/* --- COMPACT VOICE STATUS STRIP (replaces fullscreen overlay) --- */}
       <AnimatePresence>
@@ -182,7 +182,7 @@ export const MainLayout = () => {
                 Voice_Uplink_Active
               </span>
               <div className="scale-[0.3] origin-center">
-                <NeuralCore />
+                <VoiceStatusOrb />
               </div>
             </div>
           </motion.div>

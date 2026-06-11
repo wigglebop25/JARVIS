@@ -1,21 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { streamPrompt, countTokens, createSession, listSessions, getHistory, renameSession, deleteSession } from '@/services/chatService';
-import { Session, RigMessage } from '@/types/tauri';
+import { Session } from '@/types/tauri';
+import { mapHistory } from '@/features/chat';
+import type { Message, ToolCall } from '@/features/chat';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export interface ToolCall {
-  name: string;
-  args: string;
-}
-
-export interface Message {
-  id: string;
-  sender: 'user' | 'jarvis';
-  text: string;
-  tokenCount?: number;
-  toolCalls?: ToolCall[];
-}
+export type { Message, ToolCall };
 
 interface SessionContextType {
   // Session list
@@ -37,82 +28,6 @@ interface SessionContextType {
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-/** Check if a message is a tool result (should not render as user prompt) */
-const isToolResultMessage = (content: any): boolean => {
-  if (!Array.isArray(content)) return false;
-  return content.some((item: any) => item?.type === 'toolresult');
-};
-
-/** Extract text only from content (skips tool calls and tool results) */
-const parseContent = (content: any): string => {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((item: any) => {
-        if (typeof item === 'string') return item;
-        if (item && typeof item === 'object') {
-          if (item.function || item.type === 'toolresult') return '';
-          if (typeof item.text === 'string') return item.text;
-          if (Array.isArray(item.content)) {
-            return item.content.map((sub: any) => sub?.text || '').filter(Boolean).join('\n');
-          }
-          if (typeof item.content === 'string') return item.content;
-        }
-        return '';
-      })
-      .filter(Boolean)
-      .join('\n');
-  }
-  return '';
-};
-
-/** Extract tool calls from a content array */
-const extractToolCalls = (content: any): ToolCall[] => {
-  if (!Array.isArray(content)) return [];
-  return content
-    .filter((item: any) => item?.function && typeof item.function === 'object')
-    .map((item: any) => ({
-      name: item.function.name || 'unknown',
-      args: item.function.arguments
-        ? typeof item.function.arguments === 'string'
-          ? item.function.arguments
-          : JSON.stringify(item.function.arguments)
-        : '',
-    }));
-};
-
-/** Map backend RigMessage[] → frontend Message[], consolidating consecutive assistant messages */
-const mapHistory = (history: RigMessage[]): Message[] => {
-  const filtered = history.filter((msg) => !isToolResultMessage(msg.content));
-  const result: Message[] = [];
-
-  for (const msg of filtered) {
-    const isAssistant = msg.role === 'assistant' || msg.role === 'model';
-    const text = parseContent(msg.content);
-    const toolCalls = extractToolCalls(msg.content);
-    const prev = result[result.length - 1];
-
-    if (isAssistant && prev && prev.sender === 'jarvis') {
-      // Consolidate into previous assistant message
-      if (text) prev.text = prev.text ? prev.text + '\n' + text : text;
-      if (toolCalls.length > 0) {
-        prev.toolCalls = [...(prev.toolCalls || []), ...toolCalls];
-      }
-    } else {
-      result.push({
-        id: `hist-${result.length}-${Date.now()}`,
-        sender: isAssistant ? 'jarvis' : 'user',
-        text,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      });
-    }
-  }
-
-  return result;
-};
 
 // ─── Provider ───────────────────────────────────────────────────────────────
 
@@ -214,7 +129,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       if (updatedSessions.length > 0) {
         const nextActive = updatedSessions[0];
         setActiveSessionId(nextActive.id);
-        loadSessionHistory(nextActive.id);
+        await loadSessionHistory(nextActive.id);
       } else {
         prepareDraftSession();
       }

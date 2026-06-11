@@ -3,10 +3,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Server, Hash, Shield, Zap, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
+interface DeviceFormData {
+  name: string;
+  ip: string;
+  mac: string;
+  key: string;
+}
+
 interface LinkDeviceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onDeviceAdd: (deviceData: any) => void;
+  onDeviceAdd: (deviceData: DeviceFormData) => void;
 }
 
 export const LinkDeviceModal = ({ isOpen, onClose, onDeviceAdd }: LinkDeviceModalProps) => {

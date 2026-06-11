@@ -121,8 +121,10 @@ export const useSystemData = () => {
   }, []);
 
   // --- 3. FLEET DEVICES SIMULATED FLUCTUATION ---
+  // Gated behind a flag; only runs in dev or when explicitly enabled.
+  const isSimulatorEnabled = typeof window !== 'undefined' && (window as any).__ENABLE_DEVICE_SIMULATOR__;
   useEffect(() => {
-    if (isLoading || error) return;
+    if (isLoading || error || !isSimulatorEnabled) return;
 
     const interval = setInterval(() => {
       setDevices(prevDevices => 

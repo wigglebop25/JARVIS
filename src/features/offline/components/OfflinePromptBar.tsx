@@ -1,10 +1,9 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Shield, Loader2, Mic, X, Command, Paperclip, FileText } from 'lucide-react';
+import { Send, Shield, Loader2, Mic, X, Paperclip } from 'lucide-react';
 import { useVoice } from '@/context/VoiceContext';
 import { useNeuralFrequency } from '@/hooks/useNeuralFrequency';
-import { open } from '@tauri-apps/plugin-dialog';
-import { countTokens } from '@/services/chatService';
+import { VoiceWaveform, AttachedFileChips, SlashCommandMenu, useFileAttachments, useTokenCount } from '@/features/prompt';
 
 interface Props {
   input: string;
@@ -14,158 +13,27 @@ interface Props {
   centered?: boolean;
 }
 
-// ─── Slash Commands ─────────────────────────────────────────────────────────
-
-const SLASH_COMMANDS = [
-  { command: '/volume', description: 'Adjust system audio output level', args: '<0-100>' },
-  { command: '/reboot', description: 'Restart the local host machine', args: '' },
-  { command: '/translate', description: 'Translate on-screen text', args: '<target_lang>' },
-  { command: '/obs-record', description: 'Toggle OBS screen recording', args: '<start|stop>' },
-  { command: '/status', description: 'Display current system diagnostics', args: '' },
-  { command: '/bluetooth', description: 'Toggle Bluetooth hardware radio', args: '<on|off>' },
-  { command: '/wifi', description: 'Toggle Wi-Fi hardware radio', args: '<on|off>' },
-  { command: '/wol', description: 'Wake a device via Wake-on-LAN', args: '<device_name>' },
-];
-
-// ─── Voice Waveform Visualizer ──────────────────────────────────────────────
-
-const VoiceWaveform = ({ volume }: { volume: number }) => {
-  const barCount = 16;
-  const normalizedVol = Math.min(100, Math.max(0, volume));
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scaleX: 0.8 }}
-      animate={{ opacity: 1, scaleX: 1 }}
-      exit={{ opacity: 0, scaleX: 0.8 }}
-      className="flex items-center gap-[2px] h-8 px-2"
-    >
-      {Array.from({ length: barCount }).map((_, i) => {
-        // Create a wave pattern that's taller in the center
-        const centerWeight = 1 - Math.abs(i - barCount / 2) / (barCount / 2);
-        const randomFactor = 0.4 + Math.random() * 0.6;
-        const height = Math.max(3, (normalizedVol / 100) * 28 * centerWeight * randomFactor);
-
-        return (
-          <motion.div
-            key={i}
-            animate={{ height }}
-            transition={{ duration: 0.08, ease: 'easeOut' }}
-            className="w-[2px] rounded-full bg-offline-core/70"
-            style={{
-              boxShadow: normalizedVol > 30
-                ? `0 0 ${Math.round(normalizedVol / 15)}px rgba(244, 244, 245, ${normalizedVol / 300})`
-                : 'none',
-            }}
-          />
-        );
-      })}
-    </motion.div>
-  );
-};
-
-// ─── Main Component ─────────────────────────────────────────────────────────
-
-interface AttachedFile {
-  id: string;
-  path: string;
-  name: string;
-}
-
 export const OfflinePromptBar = ({ input, setInput, onSend, disabled, centered = false }: Props) => {
   const { status, transcript, startListening, stopListening } = useVoice();
   const volume = useNeuralFrequency(status === 'LISTENING');
-  const lastProcessedTranscript = useRef('');
   const wasListening = useRef(false);
-  const [showSlashMenu, setShowSlashMenu] = useState(false);
-  const [selectedSlashIdx, setSelectedSlashIdx] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const [promptTokens, setPromptTokens] = useState<number>(0);
-  const [isCalculatingTokens, setIsCalculatingTokens] = useState(false);
-  const tokenDebounceRef = useRef<any>(null);
+  const lastProcessedTranscript = useRef('');
 
-  const handleAttachClick = async () => {
-    try {
-      const selected = await open({
-        multiple: true,
-        filters: [{
-          name: 'Documents',
-          extensions: ['txt', 'md', 'pdf']
-        }]
-      });
-
-      if (!selected) return; // User cancelled
-      
-      const paths = Array.isArray(selected) ? selected : [selected];
-      const newFiles: AttachedFile[] = [];
-
-      for (const selectedPath of paths) {
-        if (attachedFiles.some(f => f.path === selectedPath)) continue;
-
-        const fileName = selectedPath.split(/[/\\]/).pop() || selectedPath;
-        newFiles.push({
-          id: `${selectedPath}-${Date.now()}-${Math.random()}`,
-          path: selectedPath,
-          name: fileName
-        });
-      }
-
-      if (newFiles.length > 0) {
-        setAttachedFiles(prev => [...prev, ...newFiles]);
-      }
-    } catch (err) {
-      console.error("Failed to select file:", err);
-    }
-  };
-
-  const removeFile = (id: string) => {
-    setAttachedFiles(prev => prev.filter(f => f.id !== id));
-  };
+  const { files: attachedFiles, add: handleAttachClick, remove: removeFile, clear: clearFiles } = useFileAttachments();
+  const attachedFilesRef = useRef(attachedFiles);
+  attachedFilesRef.current = attachedFiles;
+  const { tokens: promptTokens, isCalculating: isCalculatingTokens, update: updateTokenCount } = useTokenCount();
 
   const handleInputChange = (val: string) => {
     setInput(val);
-    if (!val.trim()) {
-      setPromptTokens(0);
-      setIsCalculatingTokens(false);
-      if (tokenDebounceRef.current) {
-        clearTimeout(tokenDebounceRef.current);
-      }
-      return;
-    }
-
-    setIsCalculatingTokens(true);
-
-    if (tokenDebounceRef.current) {
-      clearTimeout(tokenDebounceRef.current);
-    }
-
-    tokenDebounceRef.current = setTimeout(async () => {
-      try {
-        const res = await countTokens(val);
-        setPromptTokens(res.prompt_tokens);
-      } catch (err) {
-        console.error("Failed to count tokens:", err);
-      } finally {
-        setIsCalculatingTokens(false);
-      }
-    }, 300);
+    updateTokenCount(val);
   };
-
-  useEffect(() => {
-    return () => {
-      if (tokenDebounceRef.current) {
-        clearTimeout(tokenDebounceRef.current);
-      }
-    };
-  }, []);
 
   const handleSendClick = () => {
     const paths = attachedFiles.map(f => f.path);
     onSend(undefined, paths);
-    setAttachedFiles([]); // Clear attachments
-    setPromptTokens(0); // Clear tokens count
-    setIsCalculatingTokens(false);
+    clearFiles();
   };
 
   // ── Voice transcript handling ──
@@ -179,69 +47,23 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled, centered =
     if (transcript && transcript !== lastProcessedTranscript.current) {
       setInput(transcript);
       lastProcessedTranscript.current = transcript;
-      
+
       if (wasListening.current) {
-        const paths = attachedFiles.map(f => f.path);
+        const paths = attachedFilesRef.current.map(f => f.path);
         onSend(transcript, paths);
-        setAttachedFiles([]);
+        clearFiles();
         wasListening.current = false;
       }
     }
-  }, [transcript, setInput, onSend, attachedFiles]);
+  }, [transcript, setInput, onSend]);
 
-  // ── Slash command filtering ──
-  const slashQuery = useMemo(() => {
-    if (!input.startsWith('/')) return '';
-    return input.split(' ')[0].toLowerCase();
-  }, [input]);
-
-  const filteredCommands = useMemo(() => {
-    if (!slashQuery) return [];
-    return SLASH_COMMANDS.filter(cmd => cmd.command.startsWith(slashQuery));
-  }, [slashQuery]);
-
-  useEffect(() => {
-    if (slashQuery && filteredCommands.length > 0) {
-      setShowSlashMenu(true);
-      setSelectedSlashIdx(0);
-    } else {
-      setShowSlashMenu(false);
-    }
-  }, [slashQuery, filteredCommands.length]);
-
-  const selectSlashCommand = (cmd: string) => {
+  const selectSlashCommand = useCallback((cmd: string) => {
     setInput(cmd + ' ');
-    setShowSlashMenu(false);
     textareaRef.current?.focus();
-  };
+  }, [setInput]);
 
   // ── Key handling ──
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Slash menu navigation
-    if (showSlashMenu && filteredCommands.length > 0) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedSlashIdx(prev => (prev + 1) % filteredCommands.length);
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedSlashIdx(prev => (prev - 1 + filteredCommands.length) % filteredCommands.length);
-        return;
-      }
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
-        e.preventDefault();
-        selectSlashCommand(filteredCommands[selectedSlashIdx].command);
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setShowSlashMenu(false);
-        return;
-      }
-    }
-
-    // Normal send
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (!disabled && (input.trim() || attachedFiles.length > 0)) {
@@ -259,37 +81,7 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled, centered =
       <div className="max-w-5xl mx-auto relative group">
 
         {/* ── Slash Command Autocomplete Popup ── */}
-        <AnimatePresence>
-          {showSlashMenu && filteredCommands.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.15 }}
-              className="absolute bottom-full mb-2 left-0 w-full max-w-md bg-offline-surface-dark border border-offline-border rounded-xl shadow-[0_-8px_30px_rgba(0,0,0,0.5)] overflow-hidden z-50"
-            >
-              <div className="px-3 py-2 border-b border-white/5 flex items-center gap-2">
-                <Command size={10} className="text-offline-core/60" />
-                <span className="text-[9px] font-mono text-offline-core/50 uppercase tracking-[0.2em]">Local_Commands</span>
-              </div>
-              {filteredCommands.map((cmd, idx) => (
-                <button
-                  key={cmd.command}
-                  onMouseDown={() => selectSlashCommand(cmd.command)}
-                  className={`w-full text-left px-4 py-3 flex items-center gap-4 transition-all duration-150 border-l-2
-                    ${idx === selectedSlashIdx
-                      ? 'bg-offline-core/5 border-l-offline-core text-white'
-                      : 'border-l-transparent text-secondary-txt hover:bg-white/[0.03]'
-                    }`}
-                >
-                  <span className="font-mono text-[13px] font-bold text-offline-core shrink-0">{cmd.command}</span>
-                  {cmd.args && <span className="font-mono text-[10px] text-tertiary-txt/60">{cmd.args}</span>}
-                  <span className="text-[11px] font-sans text-secondary-txt/60 ml-auto">{cmd.description}</span>
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <SlashCommandMenu input={input} onSelect={selectSlashCommand} />
 
         {/* ── Input Container ── */}
         <motion.div 
@@ -302,36 +94,7 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled, centered =
             }`}
         >
           {/* Attached Files List */}
-          <AnimatePresence>
-            {attachedFiles.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="flex flex-wrap gap-2 pb-3 mb-2 border-b border-white/5"
-              >
-                {attachedFiles.map(file => (
-                  <motion.div
-                    key={file.id}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.8, opacity: 0 }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-secondary-txt text-xs font-mono select-none backdrop-blur-md transition-all hover:bg-white/10"
-                    title={file.path}
-                  >
-                    <FileText size={12} className="opacity-75" />
-                    <span className="max-w-[150px] truncate">{file.name}</span>
-                    <button
-                      onClick={() => removeFile(file.id)}
-                      className="p-0.5 rounded hover:bg-white/10 text-tertiary-txt hover:text-white transition-colors cursor-pointer"
-                    >
-                      <X size={12} />
-                    </button>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <AttachedFileChips files={attachedFiles} onRemove={removeFile} />
 
           {/* ── Inline Voice Waveform (replaces textarea when LISTENING) ── */}
           <AnimatePresence mode="wait">
@@ -350,7 +113,7 @@ export const OfflinePromptBar = ({ input, setInput, onSend, disabled, centered =
                       Listening
                     </span>
                   </div>
-                  <VoiceWaveform volume={volume} />
+                  <VoiceWaveform volume={volume} barColor="bg-offline-core/70" maxHeight={28} />
                 </div>
               </motion.div>
             ) : (

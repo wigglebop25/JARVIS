@@ -1,7 +1,7 @@
 import { Shield, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useSystemInfo } from '@/hooks/useSystemInfo';
-import { NeuralCore } from '@/features/mcp/components/NeuralCore'; 
+import { VoiceStatusOrb } from '@/features/chat'; 
 
 const MotionShield = motion(Shield);
 
@@ -81,7 +81,7 @@ export const OfflineTitlebar = () => {
         {/* NEURAL CORE: Integrated Visualizer */}
         <div className="h-10 w-20 flex items-center justify-center">
           <div className="scale-[0.4] origin-center">
-            <NeuralCore />
+            <VoiceStatusOrb />
           </div>
         </div>
 

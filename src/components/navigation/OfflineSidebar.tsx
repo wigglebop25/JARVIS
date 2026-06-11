@@ -4,27 +4,11 @@ import JarvisIcon from '@/assets/jarvislogofinal.svg';
 import { Settings, ChevronFirst, ChevronLast, Terminal, Plus, MessageSquare, Edit2, Trash2, Check, X, Database } from 'lucide-react';
 import { useSession } from '@/context/SessionContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { formatRelativeTime } from '@/utils/time';
 
 interface OfflineSidebarProps {
   onSettingsClick: () => void;
 }
-
-/** Format a timestamp into a relative label */
-const formatRelativeTime = (timestamp: number): string => {
-  const now = Date.now();
-  // Backend uses seconds, JS uses ms — normalize
-  const ts = timestamp < 1e12 ? timestamp * 1000 : timestamp;
-  const diff = Math.max(0, now - ts);
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days}d ago`;
-  return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
-};
 
 export const OfflineSidebar = ({ onSettingsClick }: OfflineSidebarProps) => {
   const [isOpen, setIsOpen] = useState(false);

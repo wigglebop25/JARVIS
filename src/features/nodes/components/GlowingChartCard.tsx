@@ -2,13 +2,18 @@ import { Card } from '@/components/ui/Card';
 import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import { useTheme } from '@/context/ThemeContext';
 
+interface ChartDataPoint {
+  time: string;
+  value: number;
+}
+
 interface GlowingChartCardProps {
   title: string;
   value: string;
   subValue: string;
   bottomLeftText: string;
   bottomRightText: string;
-  data: any[];
+  data: ChartDataPoint[];
   dataKey: string;
   colorHex: string; // fallback color
   gradientId: string; // Needs to be unique per chart so gradients don't mix

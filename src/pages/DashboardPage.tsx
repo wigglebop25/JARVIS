@@ -5,7 +5,8 @@ import { FleetTable } from '@/features/nodes/components/FleetTable';
 import { GlowingChartCard } from '@/features/nodes/components/GlowingChartCard';
 import { Card } from '@/components/ui/Card';
 import { EventLog } from '@/features/nodes/components/EventLog';
-import { CheckCircle2, Circle, Loader2, AlertTriangle, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, AlertTriangle } from 'lucide-react';
+import { StatusTray } from '@/components/ui/StatusTray';
 
 export const DashboardPage = () => {
   const { stats, devices, tasks, events, history, isLoading, error } = useSystemData();
@@ -38,20 +39,7 @@ export const DashboardPage = () => {
       className="flex flex-col gap-6 h-full"
     >
       {/* STATUS TRAY */}
-      <motion.div variants={systemBootItem} className="flex items-center justify-between py-2 px-4 bg-surface-1/40 backdrop-blur-md border border-white/5 rounded-lg shadow-sm">
-        <div className="flex gap-8 items-center">
-          <div className="flex items-center gap-2 text-[11px] font-sans font-medium tracking-wider text-primary-txt/60 uppercase">
-            <div className="w-1.5 h-1.5 rounded-full bg-success-green shadow-[0_0_5px_#00FF66] animate-pulse" />
-            Network: <span className="text-primary-txt font-bold">{stats.networkStatus}</span>
-          </div>
-          <div className="text-[11px] font-sans font-medium tracking-wider text-primary-txt/60 uppercase">
-            Nodes: <span className="text-primary-txt font-bold">{onlineCount} / {devices.length} Online</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1 bg-surface-2/50 border border-white/5 rounded text-[10px] font-sans font-semibold tracking-widest uppercase text-primary-txt/40">
-          <AlertCircle size={12} /> 0 SYSTEM ALERTS
-        </div>
-      </motion.div>
+      <StatusTray networkStatus={stats.networkStatus} onlineCount={onlineCount} totalDevices={devices.length} />
 
       {/* THE ORIGINAL TRIPLE-COLUMN SIDEBAR LAYOUT */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 flex-1">

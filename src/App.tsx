@@ -17,6 +17,7 @@ import { OfflineRAGPage } from '@/pages/OfflineRAGPage';
 // Components
 import { IntroBootSequence } from '@/components/ui/IntroBootSequence';
 import { ModeSwitchTransition } from '@/components/ui/ModeSwitchTransition';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 import './styles.css';
 
@@ -94,6 +95,7 @@ function App() {
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="h-full w-full"
           >
+            <ErrorBoundary>
             <BrowserRouter>
               <Routes>
                 {/* --- OFFLINE BRANCH --- */}
@@ -115,6 +117,7 @@ function App() {
                 )}
               </Routes>
             </BrowserRouter>
+            </ErrorBoundary>
           </motion.div>
         )}
       </AnimatePresence>

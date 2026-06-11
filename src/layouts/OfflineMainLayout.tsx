@@ -5,7 +5,7 @@ import { OfflineSidebar } from '@/components/navigation/OfflineSidebar';
 import { Outlet } from 'react-router-dom'; 
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { useVoice } from '@/context/VoiceContext';
-import { NeuralCore } from '@/features/mcp/components/NeuralCore';
+import { VoiceStatusOrb } from '@/features/chat';
 import { SessionProvider } from '@/context/SessionContext';
 
 export const OfflineMainLayout = () => {
@@ -69,7 +69,7 @@ export const OfflineMainLayout = () => {
                 Voice_Uplink_Active
               </span>
               <div className="scale-[0.3] origin-center">
-                <NeuralCore />
+                <VoiceStatusOrb />
               </div>
             </div>
           </motion.div>
