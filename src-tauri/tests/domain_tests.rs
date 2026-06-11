@@ -1,5 +1,5 @@
 use jarvis_lib::domain::config::AppConfig;
-use jarvis_lib::infrastructure::db::DatabaseManager;
+use jarvis_lib::infrastructure::database::{create_pool, run_migrations, SessionRepository};
 use std::fs;
 
 #[test]
@@ -24,39 +24,36 @@ fn test_config_load_save() {
         loaded.silence_threshold_rms
     );
 
-    // cleanup
     let _ = fs::remove_file(config_path);
 }
 
-#[test]
-fn test_database_manager() {
+#[tokio::test]
+async fn test_database_manager() {
     let temp_dir = std::env::temp_dir();
-    let db_path = temp_dir.join("jarvis_test.db");
+    let id = uuid::Uuid::new_v4();
+    let db_path = temp_dir.join(format!("jarvis_test_db_manager_{}.db", id));
 
-    // Clean up before test just in case
     let _ = fs::remove_file(&db_path);
 
-    let db = DatabaseManager::new(&db_path).unwrap();
-    let repo = jarvis_lib::infrastructure::repository::SessionRepository::new(&db);
+    run_migrations(db_path.to_str().unwrap());
+    let pool = create_pool(db_path.to_str().unwrap());
+    let repo = SessionRepository::with_pool(pool);
+
     let session_id = repo
         .create_session(Some("Test Session".to_string()))
+        .await
         .unwrap();
 
-    // The initial history should be empty
-    let initial_history = repo.get_session_history(&session_id).unwrap();
+    let initial_history = repo.get_session_history(&session_id).await.unwrap();
     assert!(initial_history.is_empty());
 
-    // We can't easily construct rig::message::Message here if its fields are private
-    // or without importing more from rig, but we can verify it doesn't crash on an empty load.
-
-    // Get all sessions
-    let sessions = repo.get_all_sessions().unwrap();
+    let sessions = repo.get_all_sessions().await.unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].title, Some("Test Session".to_string()));
 
-    // Verify row exists in session_history
+    // Verify row exists in session_history via sync connection
     {
-        let conn = db.conn.lock().unwrap();
+        let conn = rusqlite::Connection::open(db_path.to_str().unwrap()).unwrap();
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM session_history", [], |r| r.get(0))
             .unwrap();
@@ -64,29 +61,31 @@ fn test_database_manager() {
     }
 
     // Rename session
-    repo.rename_session(&session_id, "Renamed Session").unwrap();
-    let sessions = repo.get_all_sessions().unwrap();
+    repo.rename_session(&session_id, "Renamed Session")
+        .await
+        .unwrap();
+    let sessions = repo.get_all_sessions().await.unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].title, Some("Renamed Session".to_string()));
 
     // Delete session
-    repo.delete_session(&session_id).unwrap();
+    repo.delete_session(&session_id).await.unwrap();
 
-    // Verify session is gone from sessions
-    let sessions = repo.get_all_sessions().unwrap();
+    let sessions = repo.get_all_sessions().await.unwrap();
     assert!(sessions.is_empty());
 
-    // Verify history row is cascade deleted from session_history
+    // Verify history row is cascade deleted
     {
-        let conn = db.conn.lock().unwrap();
+        let conn = rusqlite::Connection::open(db_path.to_str().unwrap()).unwrap();
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM session_history", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 0);
     }
 
-    // Clean up
-    let _ = fs::remove_file(db_path);
+    let _ = fs::remove_file(&db_path);
+    let _ = fs::remove_file(format!("{}-wal", db_path.display()));
+    let _ = fs::remove_file(format!("{}-shm", db_path.display()));
 }
 
 #[test]
@@ -95,7 +94,6 @@ fn test_config_missing_fields_defaults() {
     let config_path = temp_dir.join("jarvis_test_missing_fields.toml");
     let _ = fs::remove_file(&config_path);
 
-    // Write a TOML string with only the old/subset fields
     let partial_toml = r#"
         provider = "openai"
         vad_threshold = 0.6
@@ -109,7 +107,6 @@ fn test_config_missing_fields_defaults() {
 
     fs::write(&config_path, partial_toml).unwrap();
 
-    // Load configuration – it should deserialize successfully and populate new fields with default values
     let loaded = AppConfig::load_from(&config_path).unwrap();
 
     assert_eq!(loaded.provider.to_string(), "openai");
@@ -122,7 +119,6 @@ fn test_config_missing_fields_defaults() {
     );
     assert_eq!(loaded.compaction_threshold, 128000);
 
-    // Clean up
     let _ = fs::remove_file(config_path);
 }
 
@@ -135,7 +131,6 @@ fn test_set_provider() {
     let config = AppConfig::default();
     let mutex = tokio::sync::Mutex::new(config);
 
-    // Call set_provider (now async, uses tokio::sync::Mutex)
     tokio::runtime::Runtime::new()
         .unwrap()
         .block_on(jarvis_lib::handlers::chat::set_provider(
@@ -145,35 +140,31 @@ fn test_set_provider() {
         ))
         .unwrap();
 
-    // Verify state was updated
     let updated = mutex.blocking_lock();
     assert_eq!(updated.provider.to_string(), "gemini");
 
-    // Verify it was persisted to disk
     let loaded = AppConfig::load_from(&config_path).unwrap();
     assert_eq!(loaded.provider.to_string(), "gemini");
 
-    // Clean up
     let _ = fs::remove_file(config_path);
 }
 
 #[test]
 fn test_calculate_tokens() {
     let prompt = "Explain quantum computing in one sentence.";
-    let response = "Quantum computing uses superposition and entanglement to perform complex computations.";
-    
-    let (prompt_tokens, response_tokens) = jarvis_lib::commands::chat::calculate_tokens(prompt, Some(response));
-    
-    // Check that we got positive token counts
+    let response =
+        "Quantum computing uses superposition and entanglement to perform complex computations.";
+
+    let (prompt_tokens, response_tokens) =
+        jarvis_lib::commands::chat::calculate_tokens(prompt, Some(response));
+
     assert!(prompt_tokens > 0);
     assert!(response_tokens > 0);
-    
-    // A single word is typically 1 or 2 tokens, so counts should be reasonable
     assert!(prompt_tokens < 20);
     assert!(response_tokens < 30);
-    
-    // Check with None response
-    let (prompt_tokens_only, response_none_tokens) = jarvis_lib::commands::chat::calculate_tokens(prompt, None);
+
+    let (prompt_tokens_only, response_none_tokens) =
+        jarvis_lib::commands::chat::calculate_tokens(prompt, None);
     assert_eq!(prompt_tokens_only, prompt_tokens);
     assert_eq!(response_none_tokens, 0);
 }

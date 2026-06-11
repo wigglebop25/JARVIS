@@ -1,7 +1,7 @@
 use crate::domain::config::{AppConfig, Providers};
 use crate::domain::errors::AppError;
 use crate::infrastructure::agent::AGENT_MANAGER;
-use crate::infrastructure::repository::SessionRepository;
+use crate::infrastructure::database::SessionRepository;
 use rig_core::message::{AssistantContent, Message, UserContent};
 use std::collections::HashMap;
 use std::path::Path;
@@ -54,13 +54,13 @@ pub async fn send_prompt(
     input: &str,
     attachments: Option<&[String]>,
     config: &AppConfig,
-    repo: &SessionRepository<'_>,
+    repo: &SessionRepository,
     app: Option<&tauri::AppHandle>,
 ) -> Result<String, AppError> {
     let lock = acquire_session_lock(session_id).await;
     let _guard = lock.lock().await;
 
-    let mut history = repo.get_session_history(session_id)?;
+    let mut history = repo.get_session_history(session_id).await?;
 
     let prompt_with_attachments = prepare_prompt_with_attachments(input, attachments);
 
@@ -70,7 +70,7 @@ pub async fn send_prompt(
 
     update_history_with_clean_user_message(&mut history, input, attachments);
 
-    repo.save_session_history(session_id, &history)?;
+    repo.save_session_history(session_id, &history).await?;
 
     Ok(response)
 }
@@ -96,7 +96,9 @@ pub async fn send_prompt(
 /// # Returns
 ///
 /// Returns the assistant's final response text on success, or an [`AppError`] on failure.
-fn assistant_message_text(content: &rig_core::OneOrMany<rig_core::message::AssistantContent>) -> String {
+fn assistant_message_text(
+    content: &rig_core::OneOrMany<rig_core::message::AssistantContent>,
+) -> String {
     content
         .iter()
         .filter_map(|item| match item {
@@ -107,9 +109,7 @@ fn assistant_message_text(content: &rig_core::OneOrMany<rig_core::message::Assis
         .join("\n")
 }
 
-fn deduplicate_consecutive_assistant_messages(
-    history: Vec<Message>,
-) -> Vec<Message> {
+fn deduplicate_consecutive_assistant_messages(history: Vec<Message>) -> Vec<Message> {
     let mut result: Vec<Message> = Vec::new();
     for msg in history {
         if let Message::Assistant { content, .. } = &msg {
@@ -121,12 +121,12 @@ fn deduplicate_consecutive_assistant_messages(
                 let prev_text = assistant_message_text(prev_content);
                 let curr_text = assistant_message_text(content);
                 if prev_text == curr_text {
-                    let prev_has_tools = prev_content
-                        .iter()
-                        .any(|item| matches!(item, rig_core::message::AssistantContent::ToolCall(_)));
-                    let curr_has_tools = content
-                        .iter()
-                        .any(|item| matches!(item, rig_core::message::AssistantContent::ToolCall(_)));
+                    let prev_has_tools = prev_content.iter().any(|item| {
+                        matches!(item, rig_core::message::AssistantContent::ToolCall(_))
+                    });
+                    let curr_has_tools = content.iter().any(|item| {
+                        matches!(item, rig_core::message::AssistantContent::ToolCall(_))
+                    });
                     if curr_has_tools != prev_has_tools {
                         // One has tools, the other doesn't — keep the one with tools
                         // (richer context). If curr is the one with tools, replace
@@ -154,14 +154,14 @@ pub async fn send_stream_prompt(
     input: &str,
     attachments: Option<&[String]>,
     config: &AppConfig,
-    repo: &SessionRepository<'_>,
+    repo: &SessionRepository,
     app: Option<&tauri::AppHandle>,
     channel: tauri::ipc::Channel<String>,
 ) -> Result<String, AppError> {
     let lock = acquire_session_lock(session_id).await;
     let _guard = lock.lock().await;
 
-    let history = repo.get_session_history(session_id)?;
+    let history = repo.get_session_history(session_id).await?;
 
     let prompt_with_attachments = prepare_prompt_with_attachments(input, attachments);
 
@@ -169,30 +169,32 @@ pub async fn send_stream_prompt(
         .send_stream_prompt(&prompt_with_attachments, &history, config, app, &channel)
         .await?;
 
-    let final_response =
-        if let Some(rig_core::message::Message::Assistant { content, .. }) = updated_history.last() {
-            if let Some(text) = content.iter().find_map(|item| match item {
-                AssistantContent::Text(t) => Some(t.text.clone()),
-                _ => None,
-            }) {
-                text
-            } else {
-                return Err(AppError::SystemError(
-                    "Streaming response completed but did not contain any text content".to_string(),
-                ));
-            }
+    let final_response = if let Some(rig_core::message::Message::Assistant { content, .. }) =
+        updated_history.last()
+    {
+        if let Some(text) = content.iter().find_map(|item| match item {
+            AssistantContent::Text(t) => Some(t.text.clone()),
+            _ => None,
+        }) {
+            text
         } else {
             return Err(AppError::SystemError(
-                "Streaming response completed but no assistant message was appended to history"
-                    .to_string(),
+                "Streaming response completed but did not contain any text content".to_string(),
             ));
-        };
+        }
+    } else {
+        return Err(AppError::SystemError(
+            "Streaming response completed but no assistant message was appended to history"
+                .to_string(),
+        ));
+    };
 
     update_history_with_clean_user_message(&mut updated_history, input, attachments);
 
     let updated_history = deduplicate_consecutive_assistant_messages(updated_history);
 
-    repo.save_session_history(session_id, &updated_history)?;
+    repo.save_session_history(session_id, &updated_history)
+        .await?;
 
     Ok(final_response)
 }

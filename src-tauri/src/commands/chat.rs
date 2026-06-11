@@ -8,8 +8,7 @@ use crate::domain::chat::{ChatResponse, Session, TokenCountResponse};
 use crate::domain::config::AppConfig;
 use crate::domain::errors::AppError;
 use crate::handlers::chat::{get_providers, send_prompt, send_stream_prompt, set_provider};
-use crate::infrastructure::db::DatabaseManager;
-use crate::infrastructure::repository::SessionRepository;
+use crate::infrastructure::database::SessionRepository;
 use agent_rs_lib::agent::memory::tokenizer;
 use rig_core::message::Message;
 use tauri::State;
@@ -22,7 +21,6 @@ use tauri::State;
 /// # Arguments
 ///
 /// * `title` - An optional display name for the new session. Pass `None` for an untitled session.
-/// * `db` - The database manager state, injected by Tauri.
 ///
 /// # Returns
 ///
@@ -33,12 +31,8 @@ use tauri::State;
 /// Returns [`AppError::LockError`] if the database mutex is poisoned.
 /// Returns [`AppError::SystemError`] if the SQL INSERT or transaction commit fails.
 #[tauri::command]
-pub async fn create_session(
-    title: Option<String>,
-    db: State<'_, DatabaseManager>,
-) -> Result<String, AppError> {
-    let repo = SessionRepository::new(&db);
-    repo.create_session(title)
+pub async fn create_session(title: Option<String>) -> Result<String, AppError> {
+    SessionRepository::new().create_session(title).await
 }
 
 /// Sends a user prompt to the LLM agent and returns the reply along with the active provider name.
@@ -56,7 +50,6 @@ pub async fn create_session(
 /// * `input` - The user's prompt text.
 /// * `attachments` - Optional file paths to attach as document hints for the agent.
 /// * `config` - The application configuration state (locked briefly to clone).
-/// * `db` - The database manager state, injected by Tauri.
 /// * `app` - The Tauri application handle, used to emit MCP error events.
 ///
 /// # Returns
@@ -74,7 +67,6 @@ pub async fn prompt(
     input: String,
     attachments: Option<Vec<String>>,
     config: State<'_, tokio::sync::Mutex<AppConfig>>,
-    db: State<'_, DatabaseManager>,
     app: tauri::AppHandle,
 ) -> Result<ChatResponse, AppError> {
     let config_clone = {
@@ -82,7 +74,7 @@ pub async fn prompt(
         config_guard.clone()
     };
     let provider = config_clone.provider.to_string();
-    let repo = SessionRepository::new(&db);
+    let repo = SessionRepository::new();
     let response = send_prompt(
         &session_id,
         &input,
@@ -108,7 +100,6 @@ pub async fn stream_prompt(
     input: String,
     attachments: Option<Vec<String>>,
     config: State<'_, tokio::sync::Mutex<AppConfig>>,
-    db: State<'_, DatabaseManager>,
     app: tauri::AppHandle,
     channel: tauri::ipc::Channel<String>,
 ) -> Result<ChatResponse, AppError> {
@@ -117,7 +108,7 @@ pub async fn stream_prompt(
         config_guard.clone()
     };
     let provider = config_clone.provider.to_string();
-    let repo = SessionRepository::new(&db);
+    let repo = SessionRepository::new();
     let response = send_stream_prompt(
         &session_id,
         &input,
@@ -218,8 +209,6 @@ pub async fn set_chat_provider(
 ///
 /// # Arguments
 ///
-/// * `db` - The database manager state, injected by Tauri.
-///
 /// # Returns
 ///
 /// Returns a vector of [`Session`] structs on success, or an [`AppError`] on failure.
@@ -229,9 +218,8 @@ pub async fn set_chat_provider(
 /// Returns [`AppError::LockError`] if the database mutex is poisoned.
 /// Returns [`AppError::SystemError`] on SQL query failures.
 #[tauri::command]
-pub async fn list_sessions(db: State<'_, DatabaseManager>) -> Result<Vec<Session>, AppError> {
-    let repo = SessionRepository::new(&db);
-    repo.get_all_sessions()
+pub async fn list_sessions() -> Result<Vec<Session>, AppError> {
+    SessionRepository::new().get_all_sessions().await
 }
 
 /// Retrieves the message history for a specific chat session.
@@ -241,7 +229,6 @@ pub async fn list_sessions(db: State<'_, DatabaseManager>) -> Result<Vec<Session
 /// # Arguments
 ///
 /// * `session_id` - The unique identifier of the session to retrieve history for.
-/// * `db` - The database manager state, injected by Tauri.
 ///
 /// # Returns
 ///
@@ -254,12 +241,10 @@ pub async fn list_sessions(db: State<'_, DatabaseManager>) -> Result<Vec<Session
 /// Returns [`AppError::LockError`] on mutex poison.
 /// Returns [`AppError::SystemError`] on JSON deserialisation failures.
 #[tauri::command]
-pub async fn get_history(
-    session_id: String,
-    db: State<'_, DatabaseManager>,
-) -> Result<Vec<Message>, AppError> {
-    let repo = SessionRepository::new(&db);
-    repo.get_session_history(&session_id)
+pub async fn get_history(session_id: String) -> Result<Vec<Message>, AppError> {
+    SessionRepository::new()
+        .get_session_history(&session_id)
+        .await
 }
 
 /// Renames a chat session and bumps its `updated_at` timestamp.
@@ -270,7 +255,6 @@ pub async fn get_history(
 ///
 /// * `session_id` - The unique identifier of the session to rename.
 /// * `title` - The new display title for the session.
-/// * `db` - The database manager state, injected by Tauri.
 ///
 /// # Returns
 ///
@@ -281,13 +265,10 @@ pub async fn get_history(
 /// Returns [`AppError::SystemError("Session not found")`] if `session_id` does not exist.
 /// Returns [`AppError::LockError`] on mutex poison.
 #[tauri::command]
-pub async fn rename_session(
-    session_id: String,
-    title: String,
-    db: State<'_, DatabaseManager>,
-) -> Result<(), AppError> {
-    let repo = SessionRepository::new(&db);
-    repo.rename_session(&session_id, &title)
+pub async fn rename_session(session_id: String, title: String) -> Result<(), AppError> {
+    SessionRepository::new()
+        .rename_session(&session_id, &title)
+        .await
 }
 
 /// Deletes a chat session and all its associated history (cascaded via foreign key).
@@ -297,7 +278,6 @@ pub async fn rename_session(
 /// # Arguments
 ///
 /// * `session_id` - The unique identifier of the session to delete.
-/// * `db` - The database manager state, injected by Tauri.
 ///
 /// # Returns
 ///
@@ -308,10 +288,6 @@ pub async fn rename_session(
 /// Returns [`AppError::SystemError("Session not found")`] if `session_id` does not exist.
 /// Returns [`AppError::LockError`] on mutex poison.
 #[tauri::command]
-pub async fn delete_session(
-    session_id: String,
-    db: State<'_, DatabaseManager>,
-) -> Result<(), AppError> {
-    let repo = SessionRepository::new(&db);
-    repo.delete_session(&session_id)
+pub async fn delete_session(session_id: String) -> Result<(), AppError> {
+    SessionRepository::new().delete_session(&session_id).await
 }

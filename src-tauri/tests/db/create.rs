@@ -1,17 +1,18 @@
-use crate::db::{cleanup, setup_db};
-use jarvis_lib::infrastructure::repository::SessionRepository;
+use crate::db::{cleanup, setup_test_repo};
 
-#[test]
-fn create_session_with_title() {
-    let (db, path) = setup_db("create_title");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn create_session_with_title() {
+    let (repo, path) = setup_test_repo("create_title").await;
 
-    let id = repo.create_session(Some("My Chat".to_string())).unwrap();
+    let id = repo
+        .create_session(Some("My Chat".to_string()))
+        .await
+        .unwrap();
 
     assert!(!id.is_empty());
     assert!(uuid::Uuid::parse_str(&id).is_ok());
 
-    let sessions = repo.get_all_sessions().unwrap();
+    let sessions = repo.get_all_sessions().await.unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].id, id);
     assert_eq!(sessions[0].title, Some("My Chat".to_string()));
@@ -19,41 +20,43 @@ fn create_session_with_title() {
     cleanup(&path);
 }
 
-#[test]
-fn create_session_without_title() {
-    let (db, path) = setup_db("create_no_title");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn create_session_without_title() {
+    let (repo, path) = setup_test_repo("create_no_title").await;
 
-    repo.create_session(None).unwrap();
+    repo.create_session(None).await.unwrap();
 
-    let sessions = repo.get_all_sessions().unwrap();
+    let sessions = repo.get_all_sessions().await.unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].title, None);
 
     cleanup(&path);
 }
 
-#[test]
-fn create_session_initializes_empty_history() {
-    let (db, path) = setup_db("create_empty_history");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn create_session_initializes_empty_history() {
+    let (repo, path) = setup_test_repo("create_empty_history").await;
 
-    let id = repo.create_session(Some("Test".to_string())).unwrap();
-    let history = repo.get_session_history(&id).unwrap();
+    let id = repo.create_session(Some("Test".to_string())).await.unwrap();
+    let history = repo.get_session_history(&id).await.unwrap();
 
     assert!(history.is_empty());
 
     cleanup(&path);
 }
 
-#[test]
-fn create_session_stores_row_in_both_tables() {
-    let (db, path) = setup_db("create_both_tables");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn create_session_stores_row_in_both_tables() {
+    let (repo, path) = setup_test_repo("create_both_tables").await;
 
-    let id = repo.create_session(Some("Both Tables".to_string())).unwrap();
+    let id = repo
+        .create_session(Some("Both Tables".to_string()))
+        .await
+        .unwrap();
 
-    let conn = db.conn.lock().unwrap();
+    use rusqlite::Connection;
+    let conn = Connection::open(path.to_str().unwrap()).unwrap();
+    conn.execute_batch("PRAGMA foreign_keys = ON").unwrap();
 
     let session_count: i32 = conn
         .query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))
@@ -74,24 +77,25 @@ fn create_session_stores_row_in_both_tables() {
         .unwrap();
     assert_eq!(linked_id, id);
 
-    drop(conn);
     cleanup(&path);
 }
 
-#[test]
-fn create_multiple_sessions_generates_unique_ids() {
-    let (db, path) = setup_db("create_unique_ids");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn create_multiple_sessions_generates_unique_ids() {
+    let (repo, path) = setup_test_repo("create_unique_ids").await;
 
-    let id1 = repo.create_session(Some("One".to_string())).unwrap();
-    let id2 = repo.create_session(Some("Two".to_string())).unwrap();
-    let id3 = repo.create_session(Some("Three".to_string())).unwrap();
+    let id1 = repo.create_session(Some("One".to_string())).await.unwrap();
+    let id2 = repo.create_session(Some("Two".to_string())).await.unwrap();
+    let id3 = repo
+        .create_session(Some("Three".to_string()))
+        .await
+        .unwrap();
 
     assert_ne!(id1, id2);
     assert_ne!(id2, id3);
     assert_ne!(id1, id3);
 
-    let sessions = repo.get_all_sessions().unwrap();
+    let sessions = repo.get_all_sessions().await.unwrap();
     assert_eq!(sessions.len(), 3);
 
     cleanup(&path);

@@ -1,11 +1,11 @@
 use crate::domain::config::{AppConfig, Providers};
 use crate::domain::errors::AppError;
 use agent_rs_lib::agent::agents::ContextManagedChatStream;
-use agent_rs_lib::agent::{AgentContextExt, ContextManagedAgent};
 use agent_rs_lib::agent::permission::PermissionPolicy;
 use agent_rs_lib::agent::tools::{
     GlobSearchTool, GrepSearchTool, ListDirectoryTool, ReadDocumentTool, WriteDocumentTool,
 };
+use agent_rs_lib::agent::{AgentContextExt, ContextManagedAgent};
 use agent_rs_lib::config::McpConfig;
 use agent_rs_lib::mcp::client::McpClient;
 use agent_rs_lib::security::SandboxConfig;
@@ -129,7 +129,9 @@ async fn consume_chat_stream<S, R>(
     channel: &tauri::ipc::Channel<String>,
 ) -> Result<Vec<rig_core::message::Message>, AppError>
 where
-    S: futures::Stream<Item = Result<rig_core::agent::MultiTurnStreamItem<R>, rig_core::agent::StreamingError>> + Unpin,
+    S: futures::Stream<
+            Item = Result<rig_core::agent::MultiTurnStreamItem<R>, rig_core::agent::StreamingError>,
+        > + Unpin,
     R: Unpin,
 {
     use futures::StreamExt;
@@ -160,14 +162,14 @@ where
     // On success, we must explicitly drop stream before awaiting rx,
     // because stream owns the oneshot sender that rx is waiting on.
     if aborted {
-        return Err(AppError::SystemError("Stream aborted: channel closed".to_string()));
+        return Err(AppError::SystemError(
+            "Stream aborted: channel closed".to_string(),
+        ));
     }
 
     drop(stream);
 
-    let raw_history = rx
-        .await
-        .map_err(|e| AppError::SystemError(e.to_string()))?;
+    let raw_history = rx.await.map_err(|e| AppError::SystemError(e.to_string()))?;
 
     // Strip reasoning blocks so they never enter persisted history.
     // Reasoning is ephemeral chain-of-thought; consumers who want to display

@@ -24,9 +24,16 @@ pub enum AppError {
     SystemError(String),
 }
 
-/// Converts [`rusqlite::Error`] into [`AppError::SystemError`].
-impl From<rusqlite::Error> for AppError {
-    fn from(e: rusqlite::Error) -> Self {
+/// Converts diesel query errors into [`AppError::SystemError`].
+impl From<diesel::result::Error> for AppError {
+    fn from(e: diesel::result::Error) -> Self {
+        AppError::SystemError(e.to_string())
+    }
+}
+
+/// Converts deadpool pool errors into [`AppError::SystemError`].
+impl From<diesel_async::pooled_connection::deadpool::PoolError> for AppError {
+    fn from(e: diesel_async::pooled_connection::deadpool::PoolError) -> Self {
         AppError::SystemError(e.to_string())
     }
 }

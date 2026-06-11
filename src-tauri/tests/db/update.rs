@@ -1,45 +1,44 @@
-use crate::db::{cleanup, setup_db};
+use crate::db::{cleanup, setup_test_repo};
 use jarvis_lib::domain::errors::AppError;
-use jarvis_lib::infrastructure::repository::SessionRepository;
 use rig_core::message::Message;
 
-// ---------------------------------------------------------------------------
-// rename_session
-// ---------------------------------------------------------------------------
+#[tokio::test]
+async fn rename_session_updates_title() {
+    let (repo, path) = setup_test_repo("update_title").await;
 
-#[test]
-fn rename_session_updates_title() {
-    let (db, path) = setup_db("update_title");
-    let repo = SessionRepository::new(&db);
+    let id = repo
+        .create_session(Some("Old Title".to_string()))
+        .await
+        .unwrap();
+    repo.rename_session(&id, "New Title").await.unwrap();
 
-    let id = repo.create_session(Some("Old Title".to_string())).unwrap();
-    repo.rename_session(&id, "New Title").unwrap();
-
-    let sessions = repo.get_all_sessions().unwrap();
+    let sessions = repo.get_all_sessions().await.unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].title, Some("New Title".to_string()));
 
     cleanup(&path);
 }
 
-#[test]
-fn rename_session_bumps_updated_at() {
-    let (db, path) = setup_db("update_bumps_ts");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn rename_session_bumps_updated_at() {
+    let (repo, path) = setup_test_repo("update_bumps_ts").await;
 
-    let id = repo.create_session(Some("Timestamp Test".to_string())).unwrap();
+    let id = repo
+        .create_session(Some("Timestamp Test".to_string()))
+        .await
+        .unwrap();
 
     let original_updated = {
-        let sessions = repo.get_all_sessions().unwrap();
+        let sessions = repo.get_all_sessions().await.unwrap();
         sessions[0].updated_at
     };
 
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-    repo.rename_session(&id, "Renamed").unwrap();
+    repo.rename_session(&id, "Renamed").await.unwrap();
 
     let updated_session = {
-        let sessions = repo.get_all_sessions().unwrap();
+        let sessions = repo.get_all_sessions().await.unwrap();
         sessions[0].clone()
     };
 
@@ -51,12 +50,11 @@ fn rename_session_bumps_updated_at() {
     cleanup(&path);
 }
 
-#[test]
-fn rename_session_nonexistent_errors() {
-    let (db, path) = setup_db("update_noexist");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn rename_session_nonexistent_errors() {
+    let (repo, path) = setup_test_repo("update_noexist").await;
 
-    let result = repo.rename_session("nonexistent-id", "Title");
+    let result = repo.rename_session("nonexistent-id", "Title").await;
     assert!(result.is_err());
 
     match result.unwrap_err() {
@@ -67,35 +65,38 @@ fn rename_session_nonexistent_errors() {
     cleanup(&path);
 }
 
-#[test]
-fn rename_session_to_empty_string() {
-    let (db, path) = setup_db("update_empty_title");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn rename_session_to_empty_string() {
+    let (repo, path) = setup_test_repo("update_empty_title").await;
 
-    let id = repo.create_session(Some("Original".to_string())).unwrap();
-    repo.rename_session(&id, "").unwrap();
+    let id = repo
+        .create_session(Some("Original".to_string()))
+        .await
+        .unwrap();
+    repo.rename_session(&id, "").await.unwrap();
 
-    let sessions = repo.get_all_sessions().unwrap();
+    let sessions = repo.get_all_sessions().await.unwrap();
     assert_eq!(sessions[0].title, Some("".to_string()));
 
     cleanup(&path);
 }
 
-// ---------------------------------------------------------------------------
-// save_session_history
-// ---------------------------------------------------------------------------
+#[tokio::test]
+async fn save_session_history_updates_json_column() {
+    let (repo, path) = setup_test_repo("update_history_json").await;
 
-#[test]
-fn save_session_history_updates_json_column() {
-    let (db, path) = setup_db("update_history_json");
-    let repo = SessionRepository::new(&db);
-
-    let id = repo.create_session(Some("History Update".to_string())).unwrap();
+    let id = repo
+        .create_session(Some("History Update".to_string()))
+        .await
+        .unwrap();
 
     let history = vec![Message::user("Hello")];
-    repo.save_session_history(&id, &history).unwrap();
+    repo.save_session_history(&id, &history).await.unwrap();
 
-    let conn = db.conn.lock().unwrap();
+    use rusqlite::Connection;
+    let conn = Connection::open(path.to_str().unwrap()).unwrap();
+    conn.execute_batch("PRAGMA foreign_keys = ON").unwrap();
+
     let json: String = conn
         .query_row(
             "SELECT history_json FROM session_history WHERE session_id = ?1",
@@ -105,29 +106,30 @@ fn save_session_history_updates_json_column() {
         .unwrap();
     assert!(json.contains("Hello"));
 
-    drop(conn);
     cleanup(&path);
 }
 
-#[test]
-fn save_session_history_bumps_sessions_updated_at() {
-    let (db, path) = setup_db("update_history_ts");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn save_session_history_bumps_sessions_updated_at() {
+    let (repo, path) = setup_test_repo("update_history_ts").await;
 
-    let id = repo.create_session(Some("Timestamp".to_string())).unwrap();
+    let id = repo
+        .create_session(Some("Timestamp".to_string()))
+        .await
+        .unwrap();
 
     let original_updated = {
-        let sessions = repo.get_all_sessions().unwrap();
+        let sessions = repo.get_all_sessions().await.unwrap();
         sessions[0].updated_at
     };
 
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
     let history = vec![Message::user("Update timestamp")];
-    repo.save_session_history(&id, &history).unwrap();
+    repo.save_session_history(&id, &history).await.unwrap();
 
     let new_updated = {
-        let sessions = repo.get_all_sessions().unwrap();
+        let sessions = repo.get_all_sessions().await.unwrap();
         sessions[0].updated_at
     };
 
@@ -136,12 +138,11 @@ fn save_session_history_bumps_sessions_updated_at() {
     cleanup(&path);
 }
 
-#[test]
-fn save_session_history_nonexistent_session_errors() {
-    let (db, path) = setup_db("update_history_noexist");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn save_session_history_nonexistent_session_errors() {
+    let (repo, path) = setup_test_repo("update_history_noexist").await;
 
-    let result = repo.save_session_history("nonexistent-id", &[]);
+    let result = repo.save_session_history("nonexistent-id", &[]).await;
     assert!(result.is_err());
 
     match result.unwrap_err() {
@@ -152,38 +153,42 @@ fn save_session_history_nonexistent_session_errors() {
     cleanup(&path);
 }
 
-#[test]
-fn save_session_history_overwrites_previous() {
-    let (db, path) = setup_db("update_history_overwrite");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn save_session_history_overwrites_previous() {
+    let (repo, path) = setup_test_repo("update_history_overwrite").await;
 
-    let id = repo.create_session(Some("Overwrite".to_string())).unwrap();
+    let id = repo
+        .create_session(Some("Overwrite".to_string()))
+        .await
+        .unwrap();
 
     let first = vec![Message::user("First message")];
-    repo.save_session_history(&id, &first).unwrap();
+    repo.save_session_history(&id, &first).await.unwrap();
 
     let second = vec![Message::user("Second message")];
-    repo.save_session_history(&id, &second).unwrap();
+    repo.save_session_history(&id, &second).await.unwrap();
 
-    let loaded = repo.get_session_history(&id).unwrap();
+    let loaded = repo.get_session_history(&id).await.unwrap();
     assert_eq!(loaded.len(), 1);
 
     cleanup(&path);
 }
 
-#[test]
-fn save_session_history_with_empty_vec() {
-    let (db, path) = setup_db("update_history_empty_vec");
-    let repo = SessionRepository::new(&db);
+#[tokio::test]
+async fn save_session_history_with_empty_vec() {
+    let (repo, path) = setup_test_repo("update_history_empty_vec").await;
 
-    let id = repo.create_session(Some("Empty Save".to_string())).unwrap();
+    let id = repo
+        .create_session(Some("Empty Save".to_string()))
+        .await
+        .unwrap();
 
     let history = vec![Message::user("Something")];
-    repo.save_session_history(&id, &history).unwrap();
-    assert_eq!(repo.get_session_history(&id).unwrap().len(), 1);
+    repo.save_session_history(&id, &history).await.unwrap();
+    assert_eq!(repo.get_session_history(&id).await.unwrap().len(), 1);
 
-    repo.save_session_history(&id, &[]).unwrap();
-    assert!(repo.get_session_history(&id).unwrap().is_empty());
+    repo.save_session_history(&id, &[]).await.unwrap();
+    assert!(repo.get_session_history(&id).await.unwrap().is_empty());
 
     cleanup(&path);
 }

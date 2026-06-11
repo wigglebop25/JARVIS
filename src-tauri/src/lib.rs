@@ -45,9 +45,17 @@ pub fn run() {
 
             // Load Database
             let data_dir = app.path().app_data_dir()?;
+            std::fs::create_dir_all(&data_dir)?;
             let db_path = data_dir.join(&db_name);
-            let db = infrastructure::db::DatabaseManager::new(&db_path)?;
-            app.manage(db);
+            let db_path_str = db_path.to_string_lossy().into_owned();
+
+            // Run migrations (sync, blocking; cheap)
+            infrastructure::database::run_migrations(&db_path_str);
+
+            // Initialize the global async connection pool. Must happen AFTER
+            // run_migrations so the tables exist when the first connection is
+            // created and PRAGMAs are set.
+            infrastructure::database::init_pool(&db_path_str);
 
             // Initialize the voice transcription worker
             let voice_state = match handlers::voice::init_voice_state(

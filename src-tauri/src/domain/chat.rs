@@ -1,3 +1,4 @@
+use crate::infrastructure::database::SessionRow;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
@@ -30,6 +31,17 @@ pub struct Session {
     pub created_at: i64,
     /// Unix timestamp of the most recent activity.
     pub updated_at: i64,
+}
+
+impl From<SessionRow> for Session {
+    fn from(row: SessionRow) -> Self {
+        Session {
+            id: row.id,
+            title: row.title,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }
+    }
 }
 
 /// Response format for the `count_tokens` command.
