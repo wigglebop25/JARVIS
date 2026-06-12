@@ -2,8 +2,8 @@ import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { Cpu, User, FileText } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
-import { parseThinking, estimateTokens } from '@/utils/chatUtils';
-import { Message } from '../types';
+import { estimateTokens } from '@/utils/chatUtils';
+import { Message, getMessageText } from '../types';
 import { areMessagesEqual } from '../messageUtils';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ToolCallBlock } from './ToolCallBlock';
@@ -53,14 +53,15 @@ const MessageItem = memo(({ msg, theme }: MessageItemProps) => {
               <span className="text-secondary-txt/40 mr-1 border border-white/5 px-1 py-0.5 rounded bg-white/[0.02]">
                 {msg.tokenCount !== undefined 
                   ? `${msg.tokenCount} TOKENS` 
-                  : `${estimateTokens(msg.text)} TOKENS (EST)`}
+                  : `${estimateTokens(getMessageText(msg))} TOKENS (EST)`}
               </span>
               SYS_OK
             </div>
           </div>
 
           {(() => {
-            const lines = msg.text.split('\n');
+            const fullText = getMessageText(msg);
+            const lines = fullText.split('\n');
             const attachmentPaths: string[] = [];
             const contentLines: string[] = [];
 
@@ -73,22 +74,39 @@ const MessageItem = memo(({ msg, theme }: MessageItemProps) => {
               }
             }
 
-            const cleanText = contentLines.join('\n').trim();
-
             if (msg.sender === 'jarvis') {
-              const parsed = parseThinking(cleanText);
               return (
                 <div className="flex flex-col gap-2">
-                  {parsed.hasThinking && parsed.thinking && (
-                    <ThinkingBlock thinking={parsed.thinking} isDone={parsed.isThinkingDone} theme={theme} />
-                  )}
-                  {msg.toolCalls && msg.toolCalls.length > 0 && (
-                    <ToolCallBlock toolCalls={msg.toolCalls} theme={theme} />
-                  )}
-                  {parsed.content && <MarkdownRenderer content={parsed.content} theme={theme} />}
+                  {msg.parts.map((part, i) => {
+                    if (part.kind === 'thinking') {
+                      return (
+                        <ThinkingBlock
+                          key={`t-${i}`}
+                          thinking={part.content}
+                          isDone={part.isDone}
+                          theme={theme}
+                        />
+                      );
+                    }
+                    if (part.kind === 'tool_call') {
+                      return (
+                        <ToolCallBlock
+                          key={`tc-${i}-${part.id}`}
+                          toolCall={part}
+                          theme={theme}
+                          isStreaming={!part.isDone}
+                        />
+                      );
+                    }
+                    return part.content ? (
+                      <MarkdownRenderer key={`tx-${i}`} content={part.content} theme={theme} />
+                    ) : null;
+                  })}
                 </div>
               );
             }
+
+            const cleanText = contentLines.join('\n').trim();
 
             return (
               <div className="flex flex-col gap-2">

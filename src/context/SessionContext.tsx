@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { streamPrompt, countTokens, createSession, listSessions, getHistory, renameSession, deleteSession } from '@/services/chatService';
 import { Session } from '@/types/tauri';
-import { mapHistory } from '@/features/chat';
+import { mapHistory, reduceStreamEvent } from '@/features/chat';
 import type { Message, ToolCall } from '@/features/chat';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -173,13 +173,13 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     const userMsg: Message = { 
       id: userId, 
       sender: 'user', 
-      text: displayMessage,
+      parts: [{ kind: 'text', content: displayMessage }],
       tokenCount: userTokensCount
     };
     const botMsg: Message = {
       id: assistantId,
       sender: 'jarvis',
-      text: '',
+      parts: [],
     };
 
     setMessages(prev => [...prev, userMsg, botMsg]);
@@ -212,16 +212,14 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
         }
       }
 
-      let accumulatedText = '';
-      let hasTokens = false;
+      let hasEvents = false;
 
-      const response = await streamPrompt(sid, textToSend, attachments || null, (token) => {
-        if (!hasTokens) {
+      const response = await streamPrompt(sid, textToSend, attachments || null, (ev) => {
+        if (!hasEvents) {
           setIsThinking(false);
-          hasTokens = true;
+          hasEvents = true;
         }
-        accumulatedText += token;
-        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: accumulatedText } : m));
+        setMessages(prev => prev.map(m => m.id === assistantId ? reduceStreamEvent(m, ev) : m));
       });
 
       // Get exact final token counts
@@ -241,7 +239,12 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           return { ...m, tokenCount: finalPromptTokens };
         }
         if (m.id === assistantId) {
-          return { ...m, text: response.message, tokenCount: responseTokens };
+          const hasTextPart = m.parts.some(p => p.kind === 'text');
+          return {
+            ...m,
+            parts: hasTextPart ? m.parts : [{ kind: 'text', content: response.message }],
+            tokenCount: responseTokens,
+          };
         }
         return m;
       }));
@@ -250,7 +253,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       console.error('[SessionContext] Prompt failed:', err);
       setMessages(prev => prev.map(m => {
         if (m.id === assistantId) {
-          return { ...m, text: `SYSTEM_ERROR: Backend unreachable — ${err}` };
+          return { ...m, parts: [{ kind: 'text', content: `SYSTEM_ERROR: Backend unreachable — ${err}` }] };
         }
         return m;
       }));

@@ -1,3 +1,10 @@
+export type StreamEvent =
+  | { type: 'text'; delta: string }
+  | { type: 'reasoning'; id: string; delta: string; is_final: boolean }
+  | { type: 'tool_call_start'; id: string; name: string }
+  | { type: 'tool_call_delta'; id: string; args_delta: string }
+  | { type: 'tool_call_end'; id: string; args: string };
+
 export interface ChatResponse {
   message: string;
   provider: string;

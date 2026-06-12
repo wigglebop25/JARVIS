@@ -81,9 +81,7 @@ pub fn global_pool() -> DbPool {
 }
 
 pub fn lock_db() -> Arc<Mutex<()>> {
-    DB_LOCK
-        .get_or_init(|| Arc::new(Mutex::new(())))
-        .clone()
+    DB_LOCK.get_or_init(|| Arc::new(Mutex::new(()))).clone()
 }
 
 /// Run all pending embedded migrations on the file at `database_url`.

@@ -1,3 +1,4 @@
+use crate::domain::chat::StreamEvent;
 use crate::domain::config::{AppConfig, Providers};
 use crate::domain::errors::AppError;
 use crate::infrastructure::agent::AGENT_MANAGER;
@@ -156,7 +157,7 @@ pub async fn send_stream_prompt(
     config: &AppConfig,
     repo: &SessionRepository,
     app: Option<&tauri::AppHandle>,
-    channel: tauri::ipc::Channel<String>,
+    channel: tauri::ipc::Channel<StreamEvent>,
 ) -> Result<String, AppError> {
     let lock = acquire_session_lock(session_id).await;
     let _guard = lock.lock().await;

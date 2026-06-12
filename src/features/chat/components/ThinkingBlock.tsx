@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Brain, ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -9,40 +9,35 @@ interface ThinkingBlockProps {
 }
 
 export const ThinkingBlock = ({ thinking, isDone, theme }: ThinkingBlockProps) => {
-  const [isOpen, setIsOpen] = useState(!isDone);
-
-  useEffect(() => {
-    if (!isDone) {
-      setIsOpen(true);
-    }
-  }, [isDone]);
+  const [isOpen, setIsOpen] = useState(true);
 
   const accentClass = theme === 'online' ? 'text-theme-accent' : 'text-offline-core';
   const borderClass = theme === 'online' ? 'border-theme-border' : 'border-offline-border';
-  const surfaceClass = theme === 'online' ? 'bg-theme-surface-2' : 'bg-offline-surface';
+  const bgClass = theme === 'online' ? 'bg-theme-surface-2' : 'bg-offline-surface-dark';
 
   return (
-    <div className={`border ${borderClass}/40 ${surfaceClass}/10 rounded-lg my-2 overflow-hidden text-[13px]`}>
+    <div className={`border ${borderClass}/30 ${bgClass}/30 rounded-lg overflow-hidden text-[12px] my-2`}>
       <button
-        onClick={() => isDone && setIsOpen(!isOpen)}
-        disabled={!isDone}
-        className={`w-full flex items-center justify-between px-3 py-2 ${surfaceClass}/30 ${accentClass}/70 hover:${accentClass} select-none font-mono text-[10px] uppercase tracking-wider font-semibold border-b ${borderClass}/20 transition-colors ${isDone ? 'cursor-pointer' : 'cursor-default'}`}
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center gap-2 px-3 py-1.5 ${bgClass}/20 ${accentClass}/60 hover:${accentClass} select-none font-mono text-[10px] uppercase tracking-wider font-semibold transition-colors cursor-pointer`}
       >
-        <div className="flex items-center gap-2">
-          <Brain size={12} className={!isDone ? `animate-pulse ${accentClass}` : `${accentClass}/50`} />
-          <span>{isDone ? 'Thinking Process' : 'JARVIS is thinking...'}</span>
-        </div>
-        {isDone && (isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
+        <Brain size={10} className={`shrink-0 ${!isDone ? `animate-pulse ${accentClass}` : `${accentClass}/50`}`} />
+        <span className="truncate">{isDone ? 'Thinking Process' : 'JARVIS is thinking...'}</span>
+        {!isDone && (
+          <span className={`ml-1 inline-block w-1.5 h-3 ${accentClass}/80 animate-pulse`} />
+        )}
+        <span className="ml-auto text-white/20">
+          {isOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+        </span>
       </button>
-      
       <AnimatePresence initial={false}>
         {isOpen && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="p-3 font-mono text-xs text-secondary-txt/65 bg-black/15 overflow-x-auto whitespace-pre-wrap leading-relaxed border-t border-white/5"
+            transition={{ duration: 0.1 }}
+            className="px-3 py-2 font-mono text-[10px] text-secondary-txt/50 bg-black/10 border-t border-white/5 overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto"
           >
             {thinking}
             {!isDone && (

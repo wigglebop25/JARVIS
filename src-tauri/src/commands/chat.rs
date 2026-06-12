@@ -4,7 +4,7 @@
 //! prompting the conversational agent, listing session history, and selecting/listing
 //! AI providers.
 
-use crate::domain::chat::{ChatResponse, Session, TokenCountResponse};
+use crate::domain::chat::{ChatResponse, Session, StreamEvent, TokenCountResponse};
 use crate::domain::config::AppConfig;
 use crate::domain::errors::AppError;
 use crate::handlers::chat::{get_providers, send_prompt, send_stream_prompt, set_provider};
@@ -101,7 +101,7 @@ pub async fn stream_prompt(
     attachments: Option<Vec<String>>,
     config: State<'_, tokio::sync::Mutex<AppConfig>>,
     app: tauri::AppHandle,
-    channel: tauri::ipc::Channel<String>,
+    channel: tauri::ipc::Channel<StreamEvent>,
 ) -> Result<ChatResponse, AppError> {
     let config_clone = {
         let config_guard = config.lock().await;

@@ -39,7 +39,9 @@ fn run_migrations_on_old_rusqlite_db_preserves_data() {
 
     let conn = rusqlite::Connection::open(&path).unwrap();
     let title: String = conn
-        .query_row("SELECT title FROM sessions WHERE id = 'test-id'", [], |r| r.get(0))
+        .query_row("SELECT title FROM sessions WHERE id = 'test-id'", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(title, "Old Session");
 
@@ -99,11 +101,9 @@ fn run_migrations_called_twice_does_not_fail() {
 
     let conn = rusqlite::Connection::open(&path).unwrap();
     let count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM __diesel_schema_migrations",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM __diesel_schema_migrations", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(count, 1);
     drop(conn);
@@ -112,4 +112,3 @@ fn run_migrations_called_twice_does_not_fail() {
     let _ = fs::remove_file(format!("{}-wal", path.display()));
     let _ = fs::remove_file(format!("{}-shm", path.display()));
 }
-

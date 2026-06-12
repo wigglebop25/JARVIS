@@ -7,5 +7,7 @@ pub use models::{
     session::{NewSessionRow, SessionRow},
     session_history::{NewSessionHistoryRow, SessionHistoryRow},
 };
-pub use pool::{connect_from_pool, create_pool, global_pool, init_pool, lock_db, run_migrations, DbPool};
+pub use pool::{
+    connect_from_pool, create_pool, global_pool, init_pool, lock_db, run_migrations, DbPool,
+};
 pub use repository::SessionRepository;

@@ -1,5 +1,5 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
-import { ChatResponse, Session, RigMessage, TokenCountResponse } from "@/types/tauri";
+import { ChatResponse, Session, RigMessage, TokenCountResponse, StreamEvent } from "@/types/tauri";
 
 const isTauri = () => {
   return typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ !== undefined;
@@ -91,50 +91,71 @@ export const streamPrompt = async (
   sessionId: string,
   input: string,
   attachments: string[] | null,
-  onToken: (token: string) => void
+  onEvent: (event: StreamEvent) => void
 ): Promise<ChatResponse> => {
   if (!isTauri()) {
-    console.info("[chatService] Non-Tauri environment, simulating stream.");
-    await new Promise(r => setTimeout(r, 400)); // Initial latency
+    console.info("[chatService] Non-Tauri environment, simulating structured stream.");
+    await new Promise(r => setTimeout(r, 400));
 
     let reply = `[SIMULATOR] Core uplink established. I have received your prompt.`;
     if (attachments && attachments.length > 0) {
       reply = `[SIMULATOR] I noticed the following attached file path(s): ${attachments.join(", ")}. In a Tauri environment, the agent will read these paths using its ReadDocumentTool.`;
     }
 
-    const simulationThinking = `<think>\nAnalyzing prompt: "${input}"\nValidating secure uplink...\nDrafting simulated response.\n</think>\n`;
-    const fullReply = simulationThinking + reply;
-
-    const chunkSize = 6;
-    for (let i = 0; i < fullReply.length; i += chunkSize) {
-      const chunk = fullReply.slice(i, i + chunkSize);
-      onToken(chunk);
+    // 1) Simulate reasoning chunks
+    const thinkingText = `Analyzing prompt: "${input}"\nValidating secure uplink...\nDrafting simulated response.`;
+    const thinkChunkSize = 10;
+    for (let i = 0; i < thinkingText.length; i += thinkChunkSize) {
+      const chunk = thinkingText.slice(i, i + thinkChunkSize);
+      const isFinal = i + thinkChunkSize >= thinkingText.length;
+      onEvent({ type: 'reasoning', id: 'mock-reason-1', delta: chunk, is_final: isFinal });
       await new Promise(r => setTimeout(r, 15));
     }
 
-    // Append to local history mock
+    // 2) Simulate a tool call
+    onEvent({ type: 'tool_call_start', id: 'mock-tool-1', name: 'read_document' });
+    const toolArgs = '{"path":"/sandbox/test.txt"}';
+    const toolChunkSize = 8;
+    for (let i = 0; i < toolArgs.length; i += toolChunkSize) {
+      const chunk = toolArgs.slice(i, i + toolChunkSize);
+      onEvent({ type: 'tool_call_delta', id: 'mock-tool-1', args_delta: chunk });
+      await new Promise(r => setTimeout(r, 15));
+    }
+    onEvent({ type: 'tool_call_end', id: 'mock-tool-1', args: toolArgs });
+
+    // 3) Simulate final text response in chunks
+    const textChunkSize = 6;
+    for (let i = 0; i < reply.length; i += textChunkSize) {
+      const chunk = reply.slice(i, i + textChunkSize);
+      onEvent({ type: 'text', delta: chunk });
+      await new Promise(r => setTimeout(r, 15));
+    }
+
+    // Persist to mock history with structured content (tool_call + text for reload path)
     const history = getMockHistory(sessionId);
     const updatedHistory: RigMessage[] = [
       ...history,
       { role: "user", content: [{ type: "text", text: input }] as any },
-      { role: "assistant", content: [{ text: fullReply }] as any }
+      { role: "assistant", content: [
+        { function: { name: 'read_document', arguments: JSON.parse(toolArgs) }, id: 'mock-call' },
+        { text: reply }
+      ] as any }
     ];
     saveMockHistory(sessionId, updatedHistory);
 
-    // Update session updated_at
     const sessions = getMockSessions();
-    const updatedSessions = sessions.map(s => 
+    const updatedSessions = sessions.map(s =>
       s.id === sessionId ? { ...s, updated_at: Date.now() } : s
     );
     saveMockSessions(updatedSessions);
 
     return {
-      message: fullReply,
+      message: reply,
       provider: "simulator"
     };
   }
 
-  const channel = new Channel<string>(onToken);
+  const channel = new Channel<StreamEvent>(onEvent);
 
   return await invoke<ChatResponse>("stream_prompt", {
     sessionId,

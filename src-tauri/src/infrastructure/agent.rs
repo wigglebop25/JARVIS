@@ -1,3 +1,4 @@
+use crate::domain::chat::StreamEvent;
 use crate::domain::config::{AppConfig, Providers};
 use crate::domain::errors::AppError;
 use agent_rs_lib::agent::agents::ContextManagedChatStream;
@@ -12,6 +13,7 @@ use agent_rs_lib::security::SandboxConfig;
 use rig_core::agent::Agent;
 use rig_core::prelude::*;
 use rig_core::providers::{anthropic, gemini, openai};
+use rig_core::streaming::{StreamedAssistantContent, ToolCallDeltaContent};
 use rig_core::tool::ToolDyn;
 use std::path::Path;
 use std::sync::LazyLock;
@@ -95,7 +97,7 @@ impl AppAgent {
         &self,
         prompt: &str,
         history: &[rig_core::message::Message],
-        channel: &tauri::ipc::Channel<String>,
+        channel: &tauri::ipc::Channel<StreamEvent>,
     ) -> Result<Vec<rig_core::message::Message>, AppError> {
         match self {
             AppAgent::OpenAi(agent) => {
@@ -126,7 +128,7 @@ impl AppAgent {
 async fn consume_chat_stream<S, R>(
     mut stream: ContextManagedChatStream<S, R>,
     rx: tokio::sync::oneshot::Receiver<Vec<rig_core::message::Message>>,
-    channel: &tauri::ipc::Channel<String>,
+    channel: &tauri::ipc::Channel<StreamEvent>,
 ) -> Result<Vec<rig_core::message::Message>, AppError>
 where
     S: futures::Stream<
@@ -139,11 +141,103 @@ where
     while let Some(chunk) = stream.next().await {
         match chunk {
             Ok(rig_core::agent::MultiTurnStreamItem::StreamAssistantItem(
-                rig_core::streaming::StreamedAssistantContent::Text(text),
+                StreamedAssistantContent::Text(text),
             )) => {
-                if channel.send(text.to_string()).is_err() {
+                if channel
+                    .send(StreamEvent::Text {
+                        delta: text.to_string(),
+                    })
+                    .is_err()
+                {
                     aborted = true;
                     break;
+                }
+            }
+            Ok(rig_core::agent::MultiTurnStreamItem::StreamAssistantItem(
+                StreamedAssistantContent::Reasoning(r),
+            )) => {
+                let text = r.display_text();
+                let id = r.id.clone().unwrap_or_default();
+                if channel
+                    .send(StreamEvent::Reasoning {
+                        id,
+                        delta: text,
+                        is_final: true,
+                    })
+                    .is_err()
+                {
+                    aborted = true;
+                    break;
+                }
+            }
+            Ok(rig_core::agent::MultiTurnStreamItem::StreamAssistantItem(
+                StreamedAssistantContent::ReasoningDelta { id, reasoning },
+            )) => {
+                if channel
+                    .send(StreamEvent::Reasoning {
+                        id: id.unwrap_or_default(),
+                        delta: reasoning,
+                        is_final: false,
+                    })
+                    .is_err()
+                {
+                    aborted = true;
+                    break;
+                }
+            }
+            Ok(rig_core::agent::MultiTurnStreamItem::StreamAssistantItem(
+                StreamedAssistantContent::ToolCall {
+                    tool_call,
+                    internal_call_id,
+                },
+            )) => {
+                let id = internal_call_id;
+                if channel
+                    .send(StreamEvent::ToolCallStart {
+                        id: id.clone(),
+                        name: tool_call.function.name.clone(),
+                    })
+                    .is_err()
+                {
+                    aborted = true;
+                    break;
+                }
+                let args_str = tool_call.function.arguments.to_string();
+                if channel
+                    .send(StreamEvent::ToolCallEnd { id, args: args_str })
+                    .is_err()
+                {
+                    aborted = true;
+                    break;
+                }
+            }
+            Ok(rig_core::agent::MultiTurnStreamItem::StreamAssistantItem(
+                StreamedAssistantContent::ToolCallDelta {
+                    internal_call_id,
+                    content,
+                    ..
+                },
+            )) => {
+                let id = internal_call_id;
+                match content {
+                    ToolCallDeltaContent::Name(name) => {
+                        if channel
+                            .send(StreamEvent::ToolCallStart { id, name })
+                            .is_err()
+                        {
+                            aborted = true;
+                            break;
+                        }
+                    }
+                    ToolCallDeltaContent::Delta(args_delta) => {
+                        if channel
+                            .send(StreamEvent::ToolCallDelta { id, args_delta })
+                            .is_err()
+                        {
+                            aborted = true;
+                            break;
+                        }
+                    }
                 }
             }
             Ok(rig_core::agent::MultiTurnStreamItem::FinalResponse(resp)) => {
@@ -332,7 +426,7 @@ impl AgentManager {
         history: &[rig_core::message::Message],
         config: &AppConfig,
         app: Option<&tauri::AppHandle>,
-        channel: &tauri::ipc::Channel<String>,
+        channel: &tauri::ipc::Channel<StreamEvent>,
     ) -> Result<Vec<rig_core::message::Message>, AppError> {
         let signature = ConfigSignature::from_config(config);
 

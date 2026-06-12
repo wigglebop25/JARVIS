@@ -2,6 +2,35 @@ use crate::infrastructure::database::SessionRow;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
+/// Discriminated union of events streamed from the LLM agent to the frontend.
+///
+/// Each variant serialises with `{"type": "..."}` thanks to the serde tag.
+/// Tauri's `Channel<T>` requires `T: Clone + Serialize`.
+#[derive(Clone, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum StreamEvent {
+    Text {
+        delta: String,
+    },
+    Reasoning {
+        id: String,
+        delta: String,
+        is_final: bool,
+    },
+    ToolCallStart {
+        id: String,
+        name: String,
+    },
+    ToolCallDelta {
+        id: String,
+        args_delta: String,
+    },
+    ToolCallEnd {
+        id: String,
+        args: String,
+    },
+}
+
 /// Managed state for the chat subsystem.
 ///
 /// Tracks the currently active provider name for frontend queries.

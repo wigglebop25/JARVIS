@@ -1,5 +1,6 @@
 import { RigMessage } from '@/types/tauri';
-import { ToolCall, Message } from './types';
+import { ToolCall, Message, MessagePart } from './types';
+import { parseThinking } from '@/utils/chatUtils';
 
 /** Check if a message is a tool result (should not render as user prompt) */
 export const isToolResultMessage = (content: unknown): boolean => {
@@ -72,21 +73,59 @@ export const mapHistory = (history: RigMessage[]): Message[] => {
 
   for (const msg of filtered) {
     const isAssistant = msg.role === 'assistant' || msg.role === 'model';
-    const text = parseContent(msg.content);
-    const toolCalls = extractToolCalls(msg.content);
     const prev = result[result.length - 1];
 
-    if (isAssistant && prev && prev.sender === 'jarvis') {
-      if (text) prev.text = prev.text ? prev.text + '\n' + text : text;
-      if (toolCalls.length > 0) {
-        prev.toolCalls = [...(prev.toolCalls || []), ...toolCalls];
+    const parts: MessagePart[] = [];
+
+    if (Array.isArray(msg.content)) {
+      for (const item of msg.content) {
+        if (item && typeof item === 'object') {
+          const obj = item as Record<string, unknown>;
+          if (obj.function) {
+            const funcObj = obj.function as Record<string, unknown>;
+            parts.push({
+              kind: 'tool_call',
+              id: (obj.id as string) || (funcObj.name as string) || `tc-${Date.now()}-${Math.random()}`,
+              name: (funcObj.name as string) || 'unknown',
+              args: funcObj.arguments
+                ? typeof funcObj.arguments === 'string'
+                  ? funcObj.arguments
+                  : JSON.stringify(funcObj.arguments)
+                : '',
+              isDone: true,
+            });
+          } else if (typeof obj.text === 'string') {
+            const text = obj.text as string;
+            if (isAssistant) {
+              const parsed = parseThinking(text);
+              if (parsed.hasThinking && parsed.thinking) {
+                parts.push({
+                  kind: 'thinking',
+                  id: `parsed-from-<think>-${parts.length}`,
+                  content: parsed.thinking,
+                  isDone: parsed.isThinkingDone,
+                });
+              }
+              if (parsed.content) {
+                parts.push({ kind: 'text', content: parsed.content });
+              }
+            } else {
+              parts.push({ kind: 'text', content: text });
+            }
+          }
+        }
       }
+    } else if (typeof msg.content === 'string') {
+      parts.push({ kind: 'text', content: msg.content as string });
+    }
+
+    if (isAssistant && prev && prev.sender === 'jarvis') {
+      prev.parts.push(...parts);
     } else {
       result.push({
         id: `hist-${result.length}-${Date.now()}`,
         sender: isAssistant ? 'jarvis' : 'user',
-        text,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        parts,
       });
     }
   }
@@ -96,5 +135,15 @@ export const mapHistory = (history: RigMessage[]): Message[] => {
 
 /** Memo comparator for Message items */
 export const areMessagesEqual = (prevProps: { msg: Message }, nextProps: { msg: Message }): boolean => {
-  return prevProps.msg.id === nextProps.msg.id && prevProps.msg.text === nextProps.msg.text;
+  if (prevProps.msg.id !== nextProps.msg.id) return false;
+  if (prevProps.msg.parts.length !== nextProps.msg.parts.length) return false;
+  for (let i = 0; i < prevProps.msg.parts.length; i++) {
+    const a = prevProps.msg.parts[i];
+    const b = nextProps.msg.parts[i];
+    if (a.kind !== b.kind) return false;
+    if (a.kind === 'text' && b.kind === 'text' && a.content !== b.content) return false;
+    if (a.kind === 'thinking' && b.kind === 'thinking' && (a.content !== b.content || a.isDone !== b.isDone)) return false;
+    if (a.kind === 'tool_call' && b.kind === 'tool_call' && (a.name !== b.name || a.args !== b.args || a.isDone !== b.isDone)) return false;
+  }
+  return true;
 };
