@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { AppConfig } from '@/services/configService';
-import { restartAgent } from '@/services/agentService';
+import { restartAgent, onAgentStatus } from '@/services/agentService';
 import { SectionHeader, FieldGroup } from '../components/FieldGroup';
 
 interface TabProps {
@@ -10,18 +10,35 @@ interface TabProps {
   accent: string;
 }
 
+type AgentUIStatus = 'idle' | 'building' | 'ready' | 'error';
+
 export const SystemTab = ({ config, updateConfig }: TabProps) => {
-  const [isRestarting, setIsRestarting] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<AgentUIStatus>('idle');
+  const [agentError, setAgentError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    onAgentStatus((payload) => {
+      setAgentStatus(payload.status);
+      if (payload.status === 'error') {
+        setAgentError(payload.error ?? 'Unknown error');
+      } else if (payload.status === 'ready') {
+        setAgentError(null);
+      }
+    }).then((fn) => { unsub = fn; });
+    return () => { unsub?.(); };
+  }, []);
 
   const handleRestartAgent = async () => {
-    if (isRestarting) return;
-    setIsRestarting(true);
+    if (agentStatus === 'building') return;
+    setAgentStatus('building');
+    setAgentError(null);
     try {
       await restartAgent();
     } catch (err) {
       console.error('[SystemTab] Failed to restart agent:', err);
-    } finally {
-      setIsRestarting(false);
+      setAgentStatus('error');
+      setAgentError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -147,12 +164,31 @@ export const SystemTab = ({ config, updateConfig }: TabProps) => {
         <button
           type="button"
           onClick={handleRestartAgent}
-          disabled={isRestarting}
+          disabled={agentStatus === 'building'}
           className="flex items-center gap-2 px-4 py-2 text-secondary-txt hover:text-[var(--theme-accent)] border border-transparent hover:border-[var(--theme-accent)]/30 rounded-lg transition-all text-xs font-mono uppercase tracking-wider cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <RefreshCw size={14} className={isRestarting ? 'animate-spin' : ''} />
-          {isRestarting ? 'Restarting...' : 'Restart_Agent'}
+          <RefreshCw size={14} className={agentStatus === 'building' ? 'animate-spin' : ''} />
+          {agentStatus === 'building' ? 'Building...' : 'Restart_Agent'}
         </button>
+        <div className="mt-2 flex items-center gap-2">
+          <span
+            className={`inline-block w-1.5 h-1.5 rounded-full ${
+              agentStatus === 'building'
+                ? 'bg-warning-orange animate-pulse'
+                : agentStatus === 'ready'
+                  ? 'bg-success-green'
+                  : agentStatus === 'error'
+                    ? 'bg-error-red'
+                    : 'bg-secondary-txt/40'
+            }`}
+          />
+          <span className="text-[10px] font-mono uppercase tracking-wider text-secondary-txt/70">
+            {agentStatus === 'building' && 'Building...'}
+            {agentStatus === 'ready' && 'Agent_Ready'}
+            {agentStatus === 'error' && `Build_Failed${agentError ? `: ${agentError.slice(0, 60)}` : ''}`}
+            {agentStatus === 'idle' && 'Idle // Prebuild runs on startup'}
+          </span>
+        </div>
         <p className="mt-2 text-[10px] font-sans text-tertiary-txt/70 leading-relaxed">
           Clears the cached AI agent. The next chat prompt will rebuild it from the current configuration.
         </p>

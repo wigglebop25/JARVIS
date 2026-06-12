@@ -52,7 +52,6 @@ export interface AppConfig {
   api_key: string;
   chat_model: string;
   chat_base_url: string;
-  vad_threshold: number;
   silence_threshold_rms: number;
   silence_duration_ms: number;
   transcription_model_path: string;

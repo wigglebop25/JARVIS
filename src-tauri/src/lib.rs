@@ -81,6 +81,12 @@ pub fn run() {
                 infrastructure::system::start_telemetry_worker(app_handle);
             });
 
+            // Prebuild the agent in the background so it's ready when the user chats
+            let prebuild_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                crate::infrastructure::agent::prebuild_agent(prebuild_app).await;
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

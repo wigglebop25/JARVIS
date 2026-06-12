@@ -15,7 +15,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   api_key: '',
   chat_model: 'google/gemma-4-e4b',
   chat_base_url: 'http://127.0.0.1:1234/v1',
-  vad_threshold: 0.5,
   silence_threshold_rms: 0.01,
   silence_duration_ms: 1000,
   transcription_model_path: 'parakeet-tdt-0.6b-v3-int8',

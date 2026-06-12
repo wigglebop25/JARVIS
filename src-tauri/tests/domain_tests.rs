@@ -96,7 +96,6 @@ fn test_config_missing_fields_defaults() {
 
     let partial_toml = r#"
         provider = "openai"
-        vad_threshold = 0.6
         silence_threshold_rms = 0.02
         silence_duration_ms = 2000
         api_key = "test_key"

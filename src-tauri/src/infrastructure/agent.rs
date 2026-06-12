@@ -17,6 +17,7 @@ use rig_core::streaming::{StreamedAssistantContent, ToolCallDeltaContent};
 use rig_core::tool::ToolDyn;
 use std::path::Path;
 use std::sync::LazyLock;
+use tauri::{Emitter, Manager};
 use tokio::sync::RwLock;
 
 /// A type-erased LLM agent that wraps any supported provider.
@@ -377,25 +378,8 @@ impl AgentManager {
         config: &AppConfig,
         app: Option<&tauri::AppHandle>,
     ) -> Result<String, AppError> {
-        let signature = ConfigSignature::from_config(config);
-
-        let needs_rebuild = {
-            let sig_guard = self.signature.read().await;
-            let agent_guard = self.agent.read().await;
-            *sig_guard != signature || agent_guard.is_none()
-        };
-
-        if needs_rebuild {
-            // Build the agent first asynchronously (guards not held across build)
-            let new_agent = build_agent(config, app).await?;
-
-            let mut sig_guard = self.signature.write().await;
-            let mut agent_guard = self.agent.write().await;
-
-            if *sig_guard != signature || agent_guard.is_none() {
-                *agent_guard = Some(new_agent);
-                *sig_guard = signature;
-            }
+        if let Some(handle) = app {
+            self.build_and_store(config, handle).await?;
         }
 
         let agent_guard = self.agent.read().await;
@@ -429,14 +413,16 @@ impl AgentManager {
         *sig_guard = ConfigSignature::empty();
     }
 
-    pub async fn send_stream_prompt(
+    /// Builds a new agent from `config` and stores it, updating the cached signature.
+    ///
+    /// This is the single source of truth for agent construction + storage.
+    /// Callers (lazy rebuild in `send_prompt`/`send_stream_prompt` and the
+    /// background prebuild) all funnel through this method.
+    pub async fn build_and_store(
         &self,
-        prompt: &str,
-        history: &[rig_core::message::Message],
         config: &AppConfig,
-        app: Option<&tauri::AppHandle>,
-        channel: &tauri::ipc::Channel<StreamEvent>,
-    ) -> Result<Vec<rig_core::message::Message>, AppError> {
+        app: &tauri::AppHandle,
+    ) -> Result<(), AppError> {
         let signature = ConfigSignature::from_config(config);
 
         let needs_rebuild = {
@@ -446,8 +432,7 @@ impl AgentManager {
         };
 
         if needs_rebuild {
-            // Build the agent first asynchronously (guards not held across build)
-            let new_agent = build_agent(config, app).await?;
+            let new_agent = build_agent(config, Some(app)).await?;
 
             let mut sig_guard = self.signature.write().await;
             let mut agent_guard = self.agent.write().await;
@@ -456,6 +441,21 @@ impl AgentManager {
                 *agent_guard = Some(new_agent);
                 *sig_guard = signature;
             }
+        }
+
+        Ok(())
+    }
+
+    pub async fn send_stream_prompt(
+        &self,
+        prompt: &str,
+        history: &[rig_core::message::Message],
+        config: &AppConfig,
+        app: Option<&tauri::AppHandle>,
+        channel: &tauri::ipc::Channel<StreamEvent>,
+    ) -> Result<Vec<rig_core::message::Message>, AppError> {
+        if let Some(handle) = app {
+            self.build_and_store(config, handle).await?;
         }
 
         let agent_guard = self.agent.read().await;
@@ -609,6 +609,43 @@ async fn build_agent(
                 .with_compaction(config.compaction_threshold, compaction_model);
 
             Ok(AppAgent::Anthropic(agent))
+        }
+    }
+}
+
+/// Prebuilds the agent in the background and stores it in [`AGENT_MANAGER`].
+///
+/// Emits `"agent-status"` Tauri events so the frontend can display progress:
+/// - `{"status": "building"}` — build started
+/// - `{"status": "ready", "provider": "<Debug-formatted provider>"}` — build succeeded
+/// - `{"status": "error", "error": "<message>"}` — build failed
+pub async fn prebuild_agent(app: tauri::AppHandle) {
+    let _ = app.emit("agent-status", serde_json::json!({ "status": "building" }));
+
+    let config = {
+        let state = app.state::<tokio::sync::Mutex<AppConfig>>();
+        let guard = state.lock().await;
+        guard.clone()
+    };
+
+    match AGENT_MANAGER.build_and_store(&config, &app).await {
+        Ok(()) => {
+            let _ = app.emit(
+                "agent-status",
+                serde_json::json!({
+                    "status": "ready",
+                    "provider": format!("{:?}", config.provider),
+                }),
+            );
+        }
+        Err(e) => {
+            let _ = app.emit(
+                "agent-status",
+                serde_json::json!({
+                    "status": "error",
+                    "error": e.to_string(),
+                }),
+            );
         }
     }
 }

@@ -18,18 +18,6 @@ export const VoiceTab = ({ config, updateConfig }: TabProps) => {
           <MicTester />
       </FieldGroup>
 
-      <FieldGroup label="VAD Threshold" description="Voice activity detection sensitivity (lower = more sensitive)">
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={Math.round(config.vad_threshold * 100)}
-          onChange={(e) => updateConfig('vad_threshold', parseFloat((parseInt(e.target.value) / 100).toFixed(2)))}
-          className="w-full bg-white/[0.02] hover:bg-white/[0.04] border border-white/10 rounded-lg px-4 py-3 text-sm font-mono text-primary-txt focus:outline-none focus:border-[var(--theme-accent)]/50 focus:ring-1 focus:ring-[var(--theme-accent)]/30 transition-all duration-300 accent-[var(--theme-accent)]"
-        />
-        <span className="text-[10px] font-mono text-secondary-txt">{config.vad_threshold.toFixed(2)}</span>
-      </FieldGroup>
-
       <FieldGroup label="Silence Energy Gate" description="RMS audio energy threshold for ambient noise filtering.">
         <SliderInput
           id="settings-silence-rms"
