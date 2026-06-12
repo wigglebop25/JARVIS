@@ -4,10 +4,12 @@ import { mermaidCache } from './cache';
 
 interface MermaidBlockProps {
   chart: string;
+  isStreaming?: boolean;
 }
 
-export const MermaidBlock = ({ chart }: MermaidBlockProps) => {
+export const MermaidBlock = ({ chart, isStreaming = false }: MermaidBlockProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const cleanChart = chart.trim();
   const [svg, setSvg] = useState<string>(() => mermaidCache.get(cleanChart) || '');
@@ -16,6 +18,12 @@ export const MermaidBlock = ({ chart }: MermaidBlockProps) => {
     const cached = mermaidCache.get(cleanChart);
     if (cached) {
       setSvg(cached);
+      setError(null);
+      return;
+    }
+
+    if (isStreaming) {
+      setSvg('');
       setError(null);
       return;
     }
@@ -50,12 +58,13 @@ export const MermaidBlock = ({ chart }: MermaidBlockProps) => {
       }
     };
 
-    renderChart();
+    debounceRef.current = setTimeout(renderChart, 300);
 
     return () => {
       active = false;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [cleanChart]);
+  }, [cleanChart, isStreaming]);
 
   if (error) {
     return (
@@ -66,6 +75,20 @@ export const MermaidBlock = ({ chart }: MermaidBlockProps) => {
         <pre className="p-4 overflow-x-auto text-[11px] leading-relaxed text-red-400/90 whitespace-pre">
           <code>{error}</code>
         </pre>
+      </div>
+    );
+  }
+
+  if (isStreaming && !svg) {
+    return (
+      <div className="relative border border-white/10 rounded-lg overflow-hidden bg-black/40 my-3.5 p-4 flex justify-center items-center min-h-[3rem]">
+        <div className="absolute top-2 right-2 text-[8px] font-mono text-secondary-txt/30 uppercase tracking-widest pointer-events-none select-none">
+          Diagram_Canvas
+        </div>
+        <div className="text-[11px] text-secondary-txt/40 font-mono animate-pulse flex items-center gap-1.5">
+          <span className="inline-block w-2 h-3 bg-secondary-txt/30 animate-pulse" />
+          rendering diagram…
+        </div>
       </div>
     );
   }

@@ -420,6 +420,15 @@ impl AgentManager {
     /// # Returns
     ///
     /// Returns the updated conversation history on success, or an [`AppError`] on failure.
+    /// Clears the cached agent and resets the config signature so the next
+    /// prompt rebuilds the agent from the current configuration.
+    pub async fn restart(&self) {
+        let mut agent_guard = self.agent.write().await;
+        let mut sig_guard = self.signature.write().await;
+        *agent_guard = None;
+        *sig_guard = ConfigSignature::empty();
+    }
+
     pub async fn send_stream_prompt(
         &self,
         prompt: &str,

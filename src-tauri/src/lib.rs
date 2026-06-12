@@ -3,6 +3,7 @@ pub mod domain;
 pub mod handlers;
 pub mod infrastructure;
 
+use crate::commands::agent::*;
 use crate::commands::chat::*;
 use crate::commands::config::*;
 use crate::commands::documents::*;
@@ -83,6 +84,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // Agent
+            restart_agent,
             // Config
             get_config,
             update_config,

@@ -8,6 +8,7 @@
 //! - [`system`]: Local system information querying.
 //! - [`voice`]: Voice transcription and audio-listener management.
 
+pub mod agent;
 pub mod chat;
 pub mod config;
 pub mod documents;

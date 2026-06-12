@@ -141,7 +141,7 @@ export const areMessagesEqual = (prevProps: { msg: Message }, nextProps: { msg: 
     const a = prevProps.msg.parts[i];
     const b = nextProps.msg.parts[i];
     if (a.kind !== b.kind) return false;
-    if (a.kind === 'text' && b.kind === 'text' && a.content !== b.content) return false;
+    if (a.kind === 'text' && b.kind === 'text' && (a.content !== b.content || a.isDone !== b.isDone)) return false;
     if (a.kind === 'thinking' && b.kind === 'thinking' && (a.content !== b.content || a.isDone !== b.isDone)) return false;
     if (a.kind === 'tool_call' && b.kind === 'tool_call' && (a.name !== b.name || a.args !== b.args || a.isDone !== b.isDone)) return false;
   }

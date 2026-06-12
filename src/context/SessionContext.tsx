@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { streamPrompt, countTokens, createSession, listSessions, getHistory, renameSession, deleteSession } from '@/services/chatService';
 import { Session } from '@/types/tauri';
 import { mapHistory, reduceStreamEvent } from '@/features/chat';
+import { markLastTextDone } from '@/features/chat/streamingReducer';
 import type { Message, ToolCall } from '@/features/chat';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -258,6 +259,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
         return m;
       }));
     } finally {
+      setMessages(prev => prev.map(m => m.id === assistantId ? markLastTextDone(m) : m));
       setIsThinking(false);
     }
 

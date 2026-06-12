@@ -30,8 +30,9 @@ export const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   useEffect(() => {
     if (isOpen) {
       getConfig().then((loaded) => {
-        setConfig(loaded);
-        setInitialConfig(loaded);
+        const merged = { ...DEFAULT_CONFIG, ...loaded };
+        setConfig(merged);
+        setInitialConfig(merged);
         setHasChanges(false);
         setSaveStatus('idle');
       });

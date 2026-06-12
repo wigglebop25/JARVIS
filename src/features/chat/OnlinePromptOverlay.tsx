@@ -9,6 +9,7 @@ import { streamPrompt, countTokens, createSession } from '@/services/chatService
 import { useNeuralFrequency } from '@/hooks/useNeuralFrequency';
 import { VoiceWaveform, AttachedFileChips, useFileAttachments, useTokenCount, useAutoSendTranscript } from '@/features/prompt';
 import { reduceStreamEvent } from '@/features/chat';
+import { markLastTextDone } from '@/features/chat/streamingReducer';
 
 export const OnlinePromptOverlay = () => {
   const { status, transcript, startListening, stopListening, setStatus } = useVoice(); 
@@ -129,6 +130,7 @@ export const OnlinePromptOverlay = () => {
         return m;
       }));
     } finally {
+      setMessages(prev => prev.map(m => m.id === assistantId ? markLastTextDone(m) : m));
       setStatus('IDLE');
     }
   }, [input, attachedFiles, promptTokens, sessionId, status, stopListening]);

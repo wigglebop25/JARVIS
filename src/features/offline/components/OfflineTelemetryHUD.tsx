@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import {
   Cpu, MemoryStick, Wifi, WifiOff, Bluetooth, BluetoothOff,
   Volume2, VolumeX, ChevronRight, ChevronLeft,
@@ -100,6 +100,13 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
   const [isSpotifyFloated, setIsSpotifyFloated] = useState(false);
   const [panelOrder, setPanelOrder] = useState<string[]>(['cpu', 'control', 'spotify']);
 
+  const cpuDragControls = useDragControls();
+  const spotifyDragControls = useDragControls();
+  const controlDragControls = useDragControls();
+  const [cpuPos, setCpuPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 608 : 800, y: 96 });
+  const [spotifyPos, setSpotifyPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 608 : 800, y: 352 });
+  const [controlPos, setControlPos] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 608 : 800, y: typeof window !== 'undefined' ? window.innerHeight - 384 : 500 });
+
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
@@ -114,8 +121,11 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
 
   const progressPercent = trackDuration > 0 ? (trackProgress / trackDuration) * 100 : 0;
 
-  const renderPanelHeader = (title: string, icon: React.ReactNode, isFloated: boolean, onFloat: () => void, onDock: () => void) => (
-    <div className={`flex items-center gap-2 mb-3 select-none ${isFloated ? 'cursor-grab active:cursor-grabbing bg-black/10 -mx-4 -mt-4 p-4 border-b border-white/5' : ''}`}>
+  const renderPanelHeader = (title: string, icon: React.ReactNode, isFloated: boolean, onFloat: () => void, onDock: () => void, dragControls?: ReturnType<typeof useDragControls>) => (
+    <div
+      className={`flex items-center gap-2 mb-3 select-none ${isFloated ? 'cursor-grab active:cursor-grabbing bg-black/10 -mx-4 -mt-4 p-4 border-b border-white/5' : ''}`}
+      onPointerDown={isFloated && dragControls ? (e) => { e.preventDefault(); dragControls.start(e); } : undefined}
+    >
       {isFloated ? (
         <GripVertical size={14} className="text-secondary-txt/45" />
       ) : (
@@ -158,11 +168,22 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="fixed top-24 right-[20rem] z-40 w-72 bg-offline-surface-dark border border-offline-border rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md overflow-hidden pointer-events-auto flex flex-col"
-            style={{ resize: 'both', minWidth: '260px', minHeight: '200px', maxWidth: '480px', maxHeight: '500px' }}
+            className="fixed z-40 w-72 bg-offline-surface-dark border border-offline-border rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md overflow-hidden pointer-events-auto flex flex-col"
+            style={{ left: cpuPos.x, top: cpuPos.y, resize: 'both', minWidth: '260px', minHeight: '200px', maxWidth: '480px', maxHeight: '500px' }}
+            drag
+            dragListener={false}
+            dragControls={cpuDragControls}
+            dragConstraints={{ top: 0, left: 0, right: 0, bottom: 0 }}
+            dragElastic={0}
+            dragMomentum={false}
+            onDrag={(_, info) => {
+              const x = Math.max(0, Math.min(window.innerWidth - 288, info.point.x));
+              const y = Math.max(0, Math.min(window.innerHeight - 100, info.point.y));
+              setCpuPos({ x, y });
+            }}
           >
             <div className="p-4 h-full flex flex-col overflow-hidden">
-              {renderPanelHeader('Hardware_Telemetry', <Activity size={12} className="text-offline-core/60" />, true, () => {}, () => setIsCpuFloated(false))}
+              {renderPanelHeader('Hardware_Telemetry', <Activity size={12} className="text-offline-core/60" />, true, () => {}, () => setIsCpuFloated(false), cpuDragControls)}
               <div className="space-y-4 bg-black/20 border border-white/5 rounded-lg p-3 flex-1 overflow-y-auto custom-scrollbar">
                 <TelemetryBar label="CPU" value={cpu} icon={<Cpu size={12} />} warning={cpu > 85} />
                 <TelemetryBar label="RAM" value={ram} icon={<MemoryStick size={12} />} warning={ram > 90} />
@@ -183,11 +204,22 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="fixed top-[22rem] right-[20rem] z-40 w-72 bg-offline-surface-dark border border-offline-border rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md overflow-hidden pointer-events-auto flex flex-col"
-            style={{ resize: 'both', minWidth: '260px', minHeight: '160px', maxWidth: '480px', maxHeight: '500px' }}
+            className="fixed z-40 w-72 bg-offline-surface-dark border border-offline-border rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md overflow-hidden pointer-events-auto flex flex-col"
+            style={{ left: spotifyPos.x, top: spotifyPos.y, resize: 'both', minWidth: '260px', minHeight: '160px', maxWidth: '480px', maxHeight: '500px' }}
+            drag
+            dragListener={false}
+            dragControls={spotifyDragControls}
+            dragConstraints={{ top: 0, left: 0, right: 0, bottom: 0 }}
+            dragElastic={0}
+            dragMomentum={false}
+            onDrag={(_, info) => {
+              const x = Math.max(0, Math.min(window.innerWidth - 288, info.point.x));
+              const y = Math.max(0, Math.min(window.innerHeight - 100, info.point.y));
+              setSpotifyPos({ x, y });
+            }}
           >
             <div className="p-4 h-full flex flex-col overflow-hidden">
-              {renderPanelHeader('Media_Monitor', <Music size={12} className="text-offline-core/60" />, true, () => {}, () => setIsSpotifyFloated(false))}
+              {renderPanelHeader('Media_Monitor', <Music size={12} className="text-offline-core/60" />, true, () => {}, () => setIsSpotifyFloated(false), spotifyDragControls)}
               <div className="bg-black/20 border border-white/5 rounded-lg p-3 space-y-3 flex-1">
                 <MediaContent
                   isMediaSupported={isMediaSupported} hasActiveMedia={hasActiveMedia}
@@ -210,11 +242,22 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="fixed bottom-24 right-[20rem] z-40 w-72 bg-offline-surface-dark border border-offline-border rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md overflow-hidden pointer-events-auto flex flex-col"
-            style={{ resize: 'both', minWidth: '260px', minHeight: '220px', maxWidth: '480px', maxHeight: '500px' }}
+            className="fixed z-40 w-72 bg-offline-surface-dark border border-offline-border rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md overflow-hidden pointer-events-auto flex flex-col"
+            style={{ left: controlPos.x, top: controlPos.y, resize: 'both', minWidth: '260px', minHeight: '220px', maxWidth: '480px', maxHeight: '500px' }}
+            drag
+            dragListener={false}
+            dragControls={controlDragControls}
+            dragConstraints={{ top: 0, left: 0, right: 0, bottom: 0 }}
+            dragElastic={0}
+            dragMomentum={false}
+            onDrag={(_, info) => {
+              const x = Math.max(0, Math.min(window.innerWidth - 288, info.point.x));
+              const y = Math.max(0, Math.min(window.innerHeight - 100, info.point.y));
+              setControlPos({ x, y });
+            }}
           >
             <div className="p-4 h-full flex flex-col overflow-hidden">
-              {renderPanelHeader('Control_Deck', <Volume2 size={12} className="text-offline-core/60" />, true, () => {}, () => setIsControlFloated(false))}
+              {renderPanelHeader('Control_Deck', <Volume2 size={12} className="text-offline-core/60" />, true, () => {}, () => setIsControlFloated(false), controlDragControls)}
               <div className="bg-black/20 border border-white/5 rounded-lg p-3 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">

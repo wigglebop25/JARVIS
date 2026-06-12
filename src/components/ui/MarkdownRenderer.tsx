@@ -30,9 +30,10 @@ interface MarkdownRendererProps {
   content: string;
   theme?: 'online' | 'offline';
   trustedSource?: boolean;
+  isStreaming?: boolean;
 }
 
-export const MarkdownRenderer = ({ content, theme = 'offline', trustedSource = false }: MarkdownRendererProps) => {
+export const MarkdownRenderer = ({ content, theme = 'offline', trustedSource = false, isStreaming = false }: MarkdownRendererProps) => {
   if (!content) return null;
 
   const themeColorClass = theme === 'offline' ? 'text-offline-core' : 'text-theme-accent';
@@ -41,7 +42,7 @@ export const MarkdownRenderer = ({ content, theme = 'offline', trustedSource = f
   processed = processed.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, '$$\n$1\n$$');
   processed = processed.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, '$$1$');
 
-  const components = createComponents(themeColorClass, theme);
+  const components = createComponents(themeColorClass, theme, isStreaming);
   const rehypePlugins = trustedSource ? [rehypeRaw, rehypeKatex] : [rehypeKatex];
 
   return (

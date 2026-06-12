@@ -99,7 +99,7 @@ const MessageItem = memo(({ msg, theme }: MessageItemProps) => {
                       );
                     }
                     return part.content ? (
-                      <MarkdownRenderer key={`tx-${i}`} content={part.content} theme={theme} />
+                      <MarkdownRenderer key={`tx-${i}`} content={part.content} theme={theme} isStreaming={msg.sender === 'jarvis' && part.isDone === false} />
                     ) : null;
                   })}
                 </div>

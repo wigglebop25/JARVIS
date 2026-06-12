@@ -4,7 +4,7 @@ export interface ToolCall {
 }
 
 export type MessagePart =
-  | { kind: 'text'; content: string }
+  | { kind: 'text'; content: string; isDone?: boolean }
   | { kind: 'thinking'; id: string; content: string; isDone: boolean }
   | { kind: 'tool_call'; id: string; name: string; args: string; isDone: boolean };
 

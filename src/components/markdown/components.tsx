@@ -54,7 +54,7 @@ const Summary = ({ children }: React.ComponentProps<'summary'>) => (
   <summary className="px-4 py-2 bg-white/5 font-mono text-[10px] font-bold text-primary-txt/90 uppercase tracking-wider cursor-pointer hover:bg-white/10 transition-colors select-none outline-none">{children}</summary>
 );
 
-export const createComponents = (themeColorClass: string, theme: 'online' | 'offline') => ({
+export const createComponents = (themeColorClass: string, theme: 'online' | 'offline', isStreaming: boolean = false) => ({
   code({ node, className, children, ...props }: React.ComponentPropsWithoutRef<'code'> & { node?: unknown; inline?: boolean }) {
     const match = /language-(\w+)/.exec(className || '');
     const lang = match ? match[1] : '';
@@ -62,7 +62,7 @@ export const createComponents = (themeColorClass: string, theme: 'online' | 'off
     const isInline = !className;
 
     if (!isInline && lang === 'mermaid') {
-      return <MermaidBlock chart={textContent} />;
+      return <MermaidBlock chart={textContent} isStreaming={isStreaming} />;
     }
 
     if (!isInline) {
