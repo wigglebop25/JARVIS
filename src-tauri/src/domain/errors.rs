@@ -52,6 +52,14 @@ impl From<std::io::Error> for AppError {
     }
 }
 
+/// Converts Windows API errors into [`AppError::SystemError`].
+#[cfg(target_os = "windows")]
+impl From<windows::core::Error> for AppError {
+    fn from(e: windows::core::Error) -> Self {
+        AppError::SystemError(e.to_string())
+    }
+}
+
 // Manual Serialize so Tauri can send AppError across the IPC bridge.
 impl Serialize for AppError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

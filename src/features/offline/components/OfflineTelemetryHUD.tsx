@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import {
   Cpu, MemoryStick, Wifi, WifiOff, Bluetooth, BluetoothOff,
@@ -7,6 +7,8 @@ import {
   Play, Pause, Volume
 } from 'lucide-react';
 import { useSystemInfo } from '@/hooks/useSystemInfo';
+import { useHardwareControl } from '@/hooks/useHardwareControl';
+import { HardwareToggle } from '@/components/HardwareToggle';
 import { useMediaSession } from './telemetry/hooks/useMediaSession';
 import { PanelPlaceholder } from './telemetry/shared/PanelPlaceholder';
 import { AudioVisualizer } from './telemetry/shared/AudioVisualizer';
@@ -41,37 +43,6 @@ const TelemetryBar = ({ label, value, icon, warning = false }: {
   );
 };
 
-const HardwareToggle = ({ label, enabled, onToggle, iconOn, iconOff }: {
-  label: string; enabled: boolean; onToggle: () => void;
-  iconOn: React.ReactNode; iconOff: React.ReactNode;
-}) => (
-  <button
-    onClick={onToggle}
-    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg border transition-all duration-300 group
-      ${enabled
-        ? 'bg-offline-core/5 border-offline-core/30 hover:bg-offline-core/10'
-        : 'bg-white/[0.02] border-white/5 hover:border-white/15 opacity-50 hover:opacity-70'
-      }`}
-  >
-    <div className={`transition-colors ${enabled ? 'text-offline-core' : 'text-secondary-txt/50'}`}>
-      {enabled ? iconOn : iconOff}
-    </div>
-    <span className={`text-xs font-mono uppercase tracking-wider flex-1 text-left transition-colors
-      ${enabled ? 'text-offline-core' : 'text-secondary-txt/55'}`}>
-      {label}
-    </span>
-    <div className={`w-7 h-3.5 rounded-full relative transition-colors duration-300 border
-      ${enabled ? 'bg-offline-core/20 border-offline-core/50' : 'bg-white/5 border-white/10'}`}>
-      <motion.div
-        animate={{ x: enabled ? 14 : 2 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-        className={`w-2.5 h-2.5 rounded-full absolute top-[1px] transition-colors duration-300
-          ${enabled ? 'bg-offline-core shadow-[0_0_6px_var(--color-offline-core)]' : 'bg-secondary-txt/40'}`}
-      />
-    </div>
-  </button>
-);
-
 interface OfflineTelemetryHUDProps {
   isOpen: boolean;
   onToggle: () => void;
@@ -91,9 +62,22 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
   const disk = systemInfo ? Math.round(systemInfo.disk_usage) : 0;
   const temp = systemInfo?.cpu_temperature ? Math.round(systemInfo.cpu_temperature) : 0;
 
-  const [volume, setVolume] = useState(65);
-  const [wifiEnabled, setWifiEnabled] = useState(false);
-  const [btEnabled, setBtEnabled] = useState(false);
+  const { hardwareState, isLoading, isSupported, error, clearError, setInteracting, setVolume, setWifi, setBluetooth } = useHardwareControl();
+
+  const isDraggingRef = useRef(false);
+  const [sliderVolume, setSliderVolume] = useState(hardwareState.volume.level);
+
+  useEffect(() => {
+    if (!isDraggingRef.current) {
+      setSliderVolume(hardwareState.volume.level);
+    }
+  }, [hardwareState.volume.level]);
+
+  useEffect(() => {
+    if (error && isDraggingRef.current) {
+      setSliderVolume(hardwareState.volume.level);
+    }
+  }, [error, hardwareState.volume.level]);
 
   const [isCpuFloated, setIsCpuFloated] = useState(false);
   const [isControlFloated, setIsControlFloated] = useState(false);
@@ -151,6 +135,49 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
         </button>
       )}
     </div>
+  );
+
+  const volumeSliderDisabled = !hardwareState.volume.available || isLoading;
+
+  const volumeSliderContent = (
+    <>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-2 text-xs font-mono text-secondary-txt/80 uppercase tracking-wider">
+            {sliderVolume === 0 ? <VolumeX size={12} className="text-error-red" /> : <Volume2 size={12} className="text-offline-core" />}
+            System Vol
+          </span>
+          <span className="text-xs font-mono font-bold text-offline-core">{sliderVolume}%</span>
+        </div>
+        <div className="relative group">
+          <div className="h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/5">
+            <div className="h-full bg-gradient-to-r from-offline-core/40 to-offline-core rounded-full" style={{ width: `${sliderVolume}%` }} />
+          </div>
+          <input
+            type="range" min={0} max={100} step={1} value={sliderVolume}
+            onChange={(e) => setSliderVolume(parseInt(e.target.value))}
+            onPointerDown={() => { isDraggingRef.current = true; setInteracting(true); }}
+            onPointerUp={() => { isDraggingRef.current = false; setVolume(sliderVolume); setInteracting(false); clearError(); }}
+            onPointerLeave={() => { if (isDraggingRef.current) { isDraggingRef.current = false; setVolume(sliderVolume); setInteracting(false); clearError(); } }}
+            disabled={volumeSliderDisabled}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
+          <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white border-2 border-offline-core shadow-[0_0_10px_rgba(244,244,245,0.4)] pointer-events-none group-hover:scale-125 transition-transform" style={{ left: `calc(${sliderVolume}% - 6px)` }} />
+        </div>
+      </div>
+      <div className="space-y-2 pt-2 border-t border-white/5">
+        <HardwareToggle label="Wi-Fi" enabled={hardwareState.wifi.enabled} onToggle={() => setWifi(!hardwareState.wifi.enabled)} iconOn={<Wifi size={14} />} iconOff={<WifiOff size={14} />} disabled={!hardwareState.wifi.available || isLoading} />
+        <HardwareToggle label="Bluetooth" enabled={hardwareState.bluetooth.enabled} onToggle={() => setBluetooth(!hardwareState.bluetooth.enabled)} iconOn={<Bluetooth size={14} />} iconOff={<BluetoothOff size={14} />} disabled={!hardwareState.bluetooth.available || isLoading} />
+      </div>
+    </>
+  );
+
+  const notSupportedFootnote = !isSupported && (
+    <p className="text-[10px] font-mono text-secondary-txt/55 pt-2">Hardware controls unavailable: Tauri backend not reachable.</p>
+  );
+
+  const errorDisplay = error && (
+    <p className="text-[10px] font-mono text-error-red pt-2">{error}</p>
   );
 
   return (
@@ -266,26 +293,9 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
             <div className="p-4 h-full flex flex-col overflow-hidden">
               {renderPanelHeader('Control_Deck', <Volume2 size={12} className="text-offline-core/60" />, true, () => {}, () => setIsControlFloated(false), controlDragControls)}
               <div className="bg-black/20 border border-white/5 rounded-lg p-3 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-xs font-mono text-secondary-txt/80 uppercase tracking-wider">
-                      {volume === 0 ? <VolumeX size={12} className="text-error-red" /> : <Volume2 size={12} className="text-offline-core" />}
-                      System Vol
-                    </span>
-                    <span className="text-xs font-mono font-bold text-offline-core">{volume}%</span>
-                  </div>
-                  <div className="relative group">
-                    <div className="h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/5">
-                      <div className="h-full bg-gradient-to-r from-offline-core/40 to-offline-core rounded-full transition-all duration-100" style={{ width: `${volume}%` }} />
-                    </div>
-                    <input type="range" min={0} max={100} step={1} value={volume} onChange={(e) => setVolume(parseInt(e.target.value))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                    <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white border-2 border-offline-core shadow-[0_0_10px_rgba(244,244,245,0.4)] pointer-events-none group-hover:scale-125 transition-transform" style={{ left: `calc(${volume}% - 6px)` }} />
-                  </div>
-                </div>
-                <div className="space-y-2 pt-2 border-t border-white/5">
-                  <HardwareToggle label="Wi-Fi" enabled={wifiEnabled} onToggle={() => setWifiEnabled(!wifiEnabled)} iconOn={<Wifi size={14} />} iconOff={<WifiOff size={14} />} />
-                  <HardwareToggle label="Bluetooth" enabled={btEnabled} onToggle={() => setBtEnabled(!btEnabled)} iconOn={<Bluetooth size={14} />} iconOff={<BluetoothOff size={14} />} />
-                </div>
+                {volumeSliderContent}
+                {notSupportedFootnote}
+                {errorDisplay}
               </div>
             </div>
             <div className="absolute bottom-1 right-1 w-2.5 h-2.5 border-r-2 border-b-2 border-offline-core/25 pointer-events-none rounded-br-sm" />
@@ -336,25 +346,9 @@ export const OfflineTelemetryHUD = ({ isOpen, onToggle }: OfflineTelemetryHUDPro
                           <div>
                             {renderPanelHeader('Control_Deck', <Volume2 size={12} className="text-offline-core/60" />, false, () => setIsControlFloated(true), () => {})}
                             <div className="bg-black/20 border border-white/5 rounded-lg p-3 space-y-3">
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="flex items-center gap-2 text-xs font-mono text-secondary-txt/80 uppercase tracking-wider">
-                                    {volume === 0 ? <VolumeX size={12} className="text-error-red" /> : <Volume2 size={12} className="text-offline-core" />} System Vol
-                                  </span>
-                                  <span className="text-xs font-mono font-bold text-offline-core">{volume}%</span>
-                                </div>
-                                <div className="relative group">
-                                  <div className="h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/5">
-                                    <div className="h-full bg-gradient-to-r from-offline-core/40 to-offline-core rounded-full transition-all duration-100" style={{ width: `${volume}%` }} />
-                                  </div>
-                                  <input type="range" min={0} max={100} step={1} value={volume} onChange={(e) => setVolume(parseInt(e.target.value))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                                  <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white border-2 border-offline-core shadow-[0_0_10px_rgba(244,244,245,0.4)] pointer-events-none group-hover:scale-125 transition-transform" style={{ left: `calc(${volume}% - 6px)` }} />
-                                </div>
-                              </div>
-                              <div className="space-y-2 pt-2 border-t border-white/5">
-                                <HardwareToggle label="Wi-Fi" enabled={wifiEnabled} onToggle={() => setWifiEnabled(!wifiEnabled)} iconOn={<Wifi size={14} />} iconOff={<WifiOff size={14} />} />
-                                <HardwareToggle label="Bluetooth" enabled={btEnabled} onToggle={() => setBtEnabled(!btEnabled)} iconOn={<Bluetooth size={14} />} iconOff={<BluetoothOff size={14} />} />
-                              </div>
+                              {volumeSliderContent}
+                              {notSupportedFootnote}
+                              {errorDisplay}
                             </div>
                           </div>
                         )}

@@ -7,6 +7,7 @@ use crate::commands::agent::*;
 use crate::commands::chat::*;
 use crate::commands::config::*;
 use crate::commands::documents::*;
+use crate::commands::hardware::*;
 use crate::commands::system::*;
 use crate::commands::voice::*;
 use tauri::Manager;
@@ -112,6 +113,12 @@ pub fn run() {
             get_voice_status,
             // System Telemetry
             get_system_info,
+            // Hardware Controls
+            get_hardware_state,
+            set_system_volume,
+            set_volume_muted,
+            set_wifi_enabled,
+            set_bluetooth_enabled,
             // Document Commands
             read_document,
             write_document,

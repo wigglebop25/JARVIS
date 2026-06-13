@@ -12,5 +12,6 @@ pub mod agent;
 pub mod chat;
 pub mod config;
 pub mod documents;
+pub mod hardware;
 pub mod system;
 pub mod voice;

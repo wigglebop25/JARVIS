@@ -55,3 +55,16 @@ rusqlite = { version = "0.37.0", features = ["bundled"] }
 [dependencies.libsqlite3-sys]
 version = "^0.35"
 features = ["bundled"]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+alsa = "0.11"
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_System_Com",
+    "Win32_Foundation",
+    "Win32_NetworkManagement_WiFi",
+] }
